@@ -1,12 +1,7 @@
 #include "assembler.hpp"
 
-int main(int argc, char const *argv[]){
-  
-  cout << registers << endl;
-  cout << literal << endl;
-  cout << symbol << endl;
-  cout << listSymbols << endl;
-  cout << listSymbolsAndLiterals << endl;
-
-  return 0;
+Assembler::Assembler(string options, string outputFile, string inputFile){
+ this->options = options;
+ this->outputFile = outputFile;
+ this->inputFile = inputFile;
 }
