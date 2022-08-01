@@ -4,6 +4,8 @@
 #include <cstring>
 #include <regex>
 
+#include "exceptions.hpp"
+
 using namespace std;
 
 // helper strings
