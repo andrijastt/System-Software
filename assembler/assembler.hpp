@@ -3,7 +3,7 @@
 #include <vector>
 #include <cstring>
 #include <regex>
-
+#include <fstream>
 #include "exceptions.hpp"
 
 using namespace std;
@@ -38,16 +38,23 @@ regex twoRegistersInstructions("^(xchg|add|sub|mul|div|cmp|and|or|xor|test|shl|s
 // helper regex
 regex tabsRegex("\t");
 regex extraSpacesRegex("[ ]+");
+regex startSpacesRegex("^[ ]+");
 regex commentsRegex("#.*");
 
 class Assembler{
 
 public:
 
-  Assembler(string options, string outputFile, string inputFile);
+  Assembler(string outputFile, string inputFile) throw();
+  bool openFiles();
+  void setGoodLines();
 
 private:
 
-  string options, outputFile, inputFile;
+  string outputFileString, inputFileString;
+  ifstream inputFile;
+  ofstream outputFile;
+  vector<string> goodLines;
+
 
 };

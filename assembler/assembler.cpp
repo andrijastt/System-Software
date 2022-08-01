@@ -1,9 +1,42 @@
 #include "assembler.hpp"
 
-Assembler::Assembler(string options, string outputFile, string inputFile){
- this->options = options;
- this->outputFile = outputFile;
- this->inputFile = inputFile;
+Assembler::Assembler(string outputFile, string inputFile) throw(){
+  this->outputFileString = outputFile;
+  this->inputFileString = inputFile;
+}
+
+bool Assembler::openFiles(){
+  this->inputFile.open(inputFileString, ios::in);
+  this->outputFile.open(outputFileString, ios::out|ios::trunc);
+
+  if(!this->inputFile.is_open()){
+    return false;
+  } else {
+    return true;
+  }
+}
+
+void Assembler::setGoodLines(){
+
+  string line;
+
+  while(getline(this->inputFile, line)){
+
+    string newLine;
+
+    newLine = regex_replace(line, commentsRegex, "");
+    newLine = regex_replace(newLine, tabsRegex, " ");
+    newLine = regex_replace(newLine, extraSpacesRegex, " ");
+    newLine = regex_replace(newLine, startSpacesRegex, "");
+
+    goodLines.push_back(newLine);
+
+  }
+
+  for(string s: goodLines){
+    this->outputFile << s << endl;
+  }
+
 }
 
 bool checkInputData(string options, string outputFile, string inputFile){
@@ -29,7 +62,14 @@ int main(int argc, char const *argv[]){
       throw InputException();
     }
 
-    Assembler assembler(options, outputFile, inputFile);
+    Assembler assembler(outputFile, inputFile);
+
+    if(!assembler.openFiles()){
+      throw NonexistantInputFileException();
+    }
+
+    assembler.setGoodLines();
+    
   }
   catch(const std::exception& e){
     std::cerr << e.what() << '\n';
