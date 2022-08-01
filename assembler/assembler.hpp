@@ -1,17 +1,11 @@
-#include <regex.h>
 #include <iostream>
+#include <string>
+#include <vector>
+#include <cstring>
+#include <regex>
 
-
+using namespace std;
 /*
-
-Asemblerske direktive
-.global <lista_simbola>
-.extern <lista_simbola>
-.section <ime_sekcije>
-.word <lista_simbola_ili_literal>
-.skip <literal>
-.end
-
 Asemblerske naredbe
 halt Zaustavlja izvršavanje instrukcija -
 int regD push psw; pc <= mem16[(regD mod 8)*2]; -
@@ -66,7 +60,31 @@ Asemblerske naredbe skoka i poziva potprograma podržavaju različite sintaksne 
 
 */
 
-// regex()
+// helper strings
+string registers = "r[0-7]|sp|psw";
+string literal = "-?[1-9][0-9]*|0x[0-9a-fA-F]+";
+string symbol = "[a-zA-Z][a-zA-z0-9_]";
+string listSymbols = "(" + symbol + "(, " + symbol + ")*)$";
+string listSymbolsAndLiterals = "((" + symbol + "|" + literal +")((, " + symbol + "|" + literal + "))*)$";
+
+// register, symbols, labels regex
+regex registersRegex(registers);
+
+// assembler directives regex
+regex globalRegex("^\\.global " + listSymbols);
+regex externRegex("^\\.extern " + listSymbols);
+regex sectionRegex("^\\.section" + symbol);
+regex wordRegex("^\\.word " + listSymbolsAndLiterals);
+regex skipRegex("^\\.skip " + literal);
+regex endRegex("^\\.end");
+
+// assembler instructions regex
+
+// helper regex
+regex tabsRegex("\t");
+regex extraSpacesRegex("[ ]+");
+regex commentsRegex("#.*");
+
 
 class Assembler{
 
