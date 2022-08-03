@@ -15,3 +15,11 @@ public:
     return "Input file doesn't exist";
   };
 };
+
+class BadSyntaxException: public std::exception{
+
+public:
+  const char* what() const throw(){
+    return "Syntax is bad";
+  };
+};

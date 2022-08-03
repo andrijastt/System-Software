@@ -1,4 +1,5 @@
 #include "assembler.hpp"
+#include "exceptions.hpp"
 
 Assembler::Assembler(string outputFile, string inputFile) throw(){
   this->outputFileString = outputFile;
@@ -32,10 +33,6 @@ void Assembler::setGoodLines(){
     goodLines.push_back(newLine);
 
   }
-
-  // for(string s: goodLines){
-  //   this->outputFile << s << "\n";
-  // }
 
 }
 
@@ -133,6 +130,55 @@ int Assembler::pass(){
       this->outputFile << "Found end directive: " << m.str(0) << endl;
     }
 
+    if(regex_search(s, m, noOperandsInstructions)){
+      this->outputFile << "Found instruction with no operands: " << m.str(0) << endl;
+    }
+
+    if(regex_search(s, m, oneRegisterInsturctions)){
+      this->outputFile << "Found instruction with one register as operand: " << m.str(0) << endl;
+
+      smatch m1;
+      regex_search(s, m1, registersRegex);
+      this->outputFile << "Register found: " << m1.str(0) << endl;
+    }
+
+    if(regex_search(s, m, twoRegistersInstructions)){
+      this->outputFile << "Found instruction with two registers as operands: " << m.str(0) << endl;
+
+      smatch m1;
+      regex_search(s, m1, registersRegex);
+      this->outputFile << "Register found: " << m1.str(0) << endl;
+      s = m1.suffix().str();
+
+      regex_search(s, m1, registersRegex);
+      this->outputFile << "Register found: " << m1.str(0) << endl;
+      s = m1.suffix().str();
+    }
+
+    if(regex_search(s, m, oneOperandInstructions)){
+      this->outputFile << "Found instruction with one operand: " << m.str(0) << endl;
+
+      smatch m1;
+      string s1 = m.str(0);
+      regex_search(s1, m1, symbolRegex);                // remove instruction name
+      s1 = m1.suffix().str();
+
+      this->outputFile << "Operand: " << s1 << endl;
+
+    }
+
+    if(regex_search(s, m, oneOperandOneRegisterInstructions)){
+      this->outputFile << "Found instruction with one operand and one register: " << m.str(0) << endl;
+
+      smatch m1;
+      string s1 = m.str(0);
+      regex_search(s1, m1, symbolRegex);                // remove instruction name
+      s1 = m1.suffix().str();
+
+      this->outputFile << "Operands: " << s1 << endl;
+
+    }
+
   }
 
   return 0;
@@ -150,7 +196,7 @@ bool checkInputData(string options, string outputFile, string inputFile){
 int main(int argc, char const *argv[]){
   
   try{
-
+    cout << operandsForData << endl;
     if(!argv[1] || !argv[2] || !argv[3]) throw InputException();
 
     string options = argv[1];
@@ -168,7 +214,9 @@ int main(int argc, char const *argv[]){
     }
 
     assembler.setGoodLines();
-    assembler.pass();
+    if(assembler.pass() < 0){
+      throw BadSyntaxException();
+    }
     
   }
   catch(const std::exception& e){
