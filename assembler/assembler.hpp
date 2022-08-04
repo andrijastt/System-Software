@@ -72,5 +72,15 @@ private:
   ofstream outputFile;
   vector<string> goodLines;
 
+  static int sectionId;
+  struct Section{
+    string name;
+    int base;
+    int length;
+    int id;
+  };
+  vector<Section> sectionTable;
+
+  static int symbolId;
 
 };
