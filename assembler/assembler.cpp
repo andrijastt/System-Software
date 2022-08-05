@@ -13,7 +13,6 @@ Assembler::Assembler(string outputFile, string inputFile) throw(){
   section.base = 0;
   section.length = 0;
   section.name = "UND";
-
   sectionTable.push_back(section);
 }
 
@@ -40,6 +39,7 @@ void Assembler::setGoodLines(){
     newLine = regex_replace(newLine, tabsRegex, " ");
     newLine = regex_replace(newLine, extraSpacesRegex, " ");
     newLine = regex_replace(newLine, startSpacesRegex, "");
+    newLine = regex_replace(newLine, endSpacesRegex, "");
 
     goodLines.push_back(newLine);
 
@@ -197,7 +197,7 @@ int Assembler::pass(){
 
       this->outputFile << "Insturction: " << instruction << endl;
 
-      if(instruction == "iret"){
+      if(instruction == "iret" || instruction == ""){
         locationCounter+=2;
         locationCounterGlobal+=2;
       }
@@ -212,18 +212,24 @@ int Assembler::pass(){
       smatch m1;
       string s1 = m.str(0);
       regex_search(s1, m1, symbolRegex);                // remove instruction name
-      s1 = m1.suffix().str();
       string instruction = m1.str(0);
+      s1 = m1.suffix().str();
 
       this->outputFile << "Instruction: " << instruction << endl;
 
       regex_search(s, m1, registersRegex);
+      string r1 = m1.str(0);
       this->outputFile << "Register found: " << m1.str(0) << endl;
       s = m1.suffix().str();
 
       regex_search(s, m1, registersRegex);
+      string r2 = m1.str(0);
       this->outputFile << "Register found: " << m1.str(0) << endl;
       s = m1.suffix().str();
+
+      locationCounter+=2;
+      locationCounterGlobal+=2;
+
     }
 
     if(regex_search(s, m, oneOperandInstructions)){
@@ -237,6 +243,60 @@ int Assembler::pass(){
       this->outputFile << "Instruction: " << instruction << endl;
       this->outputFile << "Operand: " << s1 << endl;
 
+      // register direct
+      if(regex_search(s1, m1, registerDirectJumpRegex)){
+        this->outputFile << "Jump Register direct value found!" << endl;
+        continue;
+      }
+
+      // PC REL with symbol
+      if(regex_search(s1, m1, pcRelSymbolJumpRegex)){
+        this->outputFile << "Jump PC REL with symbol found!" << endl;
+        continue;
+      }
+
+      // register indirect with literal
+      if(regex_search(s1, m1, registerIndirectLiteralJumpRegex)){
+        this->outputFile << "Jump Register indirect with literal value found!" << endl;
+        continue;
+      }
+
+      // register indirect with symbol
+      if(regex_search(s1, m1, registerIndirectSymbolJumpRegex)){
+        this->outputFile << "Jump Register indirect with symbol value found!" << endl;
+        continue;
+      }
+
+      // register indirect
+      if(regex_search(s1, m1, registerIndirectJumpRegex)){
+        this->outputFile << "Jump Register indirect value found!" << endl;
+        continue;
+      }
+
+      // memory value literal
+      if(regex_search(s1, m1, valueMemLiteralJumpRegex)){
+        this->outputFile << "Jump Memory literal value found!" << endl;
+        continue;
+      }
+
+      // memory value symbol
+      if(regex_search(s1, m1, valueMemSymbolJumpRegex)){
+        this->outputFile << "Jump Memory symbol value found!" << endl;
+        continue;
+      }
+
+      // literal value
+      if(regex_search(s1, m1, literalRegex)){
+        this->outputFile << "Jump literal value found!" << endl;
+        continue;
+      }
+
+      // symbol value
+      if(regex_search(s1, m1, symbolOnlyRegex)){
+        this->outputFile << "Jump symbol value found!" << endl;
+        continue;
+      }
+
     }
 
     if(regex_search(s, m, oneOperandOneRegisterInstructions)){
@@ -244,13 +304,82 @@ int Assembler::pass(){
 
       smatch m1;
       string s1 = m.str(0);
-      regex_search(s1, m1, symbolRegex);                // remove instruction name
+
+      regex_search(s1, m1, symbolOnlyRegex);            
       string instruction = m1.str(0);
+
+      regex_search(s1, m1, symbolRegex);                // remove instruction name
+      instruction = m1.str(0);
       s1 = m1.suffix().str();
 
       this->outputFile << "Instruction: " << instruction << endl;
       this->outputFile << "Operands: " << s1 << endl;
 
+      regex_search(s1, m1, registersRegex);
+      string registerFound = m1.str(0);
+      s1 = m1.suffix().str();
+
+      this->outputFile << "Register found: " << registerFound << endl;
+
+      if(regex_search(s1, m1, commaRegex)){
+        s1 = m1.suffix().str();
+      }
+
+      // PC REL with symbol
+      if(regex_search(s1, m1, pcRelSymbolDataRegex)){
+        this->outputFile << "PC REL with symbol found!" << endl;
+        continue;
+      }
+
+      // memory value literal
+      if(regex_search(s1, m1, valueLiteralDataRegex)){
+        this->outputFile << "Literal value found!" << endl;
+        continue;
+      }
+
+      // memory value symbol
+      if(regex_search(s1, m1, valueSymbolDataRegex)){
+        this->outputFile << "Symbol value found!" << endl;
+        continue;
+      }
+
+      // register direct
+      if(regex_search(s1, m1, registersRegex)){
+        this->outputFile << "Register direct value found!" << endl;
+        s1 = m1.suffix().str();
+      }
+
+      // register indirect
+      if(regex_search(s1, m1, registerIndirectDataRegex)){
+        this->outputFile << "Register indirect value found!" << endl;
+        continue;
+      }
+
+      // register indirect with literal
+      if(regex_search(s1, m1, registerIndirectLiteralDataRegex)){
+        this->outputFile << "Register indirect with literal value found!" << endl;
+        continue;
+      }
+
+      // register indirect with symbol
+      if(regex_search(s1, m1, registerIndirectSymbolDataRegex)){
+        this->outputFile << "Register indirect with literal value found!" << endl;
+        continue;
+      }
+
+      // literal value
+      if(regex_search(s1, m1, literalRegex)){
+        this->outputFile << "Memory literal value found!" << endl;
+        continue;
+      }
+
+      // symbol value
+      if(regex_search(s1, m1, symbolRegex)){
+        if(!regex_search(s1, m1, registersRegex))
+          this->outputFile << "Memory symbol value found!" << endl;
+        continue;
+      }
+      
     }
 
   }
@@ -264,6 +393,8 @@ int Assembler::pass(){
   this->outputFile << endl;
   this->outputFile << endl;
 
+  this->outputFile << "SECTION TABLE\n";
+  this->outputFile << "ID" << "\t" << "BASE" << "\t" << "LENGTH" << "\t" << "NAME" << "\n";
   for(Section s: sectionTable){
     this->outputFile << s.id << "\t" << s.base << "\t" << s.length << "\t" << s.name << "\n";
   }

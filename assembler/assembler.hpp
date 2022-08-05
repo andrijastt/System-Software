@@ -27,8 +27,10 @@ string operandsForJumps = literal + "|" + symbol + "|%" + symbol + "|\\*(" + lit
 // register, symbols, labels regex, literal
 regex registersRegex(registers);
 regex labelRegex("^" + symbol + ":[ ]*");
+
 // regex labelOnlyRegex("^" + symbol + ":[ ]*$");
 regex symbolRegex(symbol + "[ ]*");
+regex symbolOnlyRegex(symbol);
 regex literalRegex(literal);
 regex symbolOrLiteralRegex(symbolOrLiteral);
 regex operandsForJumpsRegex(operandsForJumps);
@@ -55,6 +57,25 @@ regex extraSpacesRegex("[ ]+");
 regex startSpacesRegex("^[ ]+");
 regex commentsRegex("#.*");
 regex spacesRegex("[ ]*");
+regex endSpacesRegex("[ ]*$");
+regex commaRegex(", ");
+
+// regex for operands for jumps
+regex pcRelSymbolJumpRegex("%" + symbol);
+regex valueMemLiteralJumpRegex("\\*("  + literal + ")");
+regex valueMemSymbolJumpRegex("\\*("  + symbol + ")");
+regex registerDirectJumpRegex("\\*" + registers);
+regex registerIndirectJumpRegex("\\*(\\[" + registers + "\\])");
+regex registerIndirectLiteralJumpRegex("\\*\\[(" + registers + ") \\+ (" + literal + ")\\]");
+regex registerIndirectSymbolJumpRegex("\\*\\[(" + registers + ") \\+ (" + symbol + ")\\]");
+
+// regex for operands for data
+regex valueLiteralDataRegex("\\$(" + literal + ")");
+regex valueSymbolDataRegex("\\$(" + symbol + ")");
+regex pcRelSymbolDataRegex("\\%" + symbol);
+regex registerIndirectDataRegex("\\[" + registers + "\\]");
+regex registerIndirectLiteralDataRegex("\\[" + registers + " \\+ (" + literal + ")\\]");
+regex registerIndirectSymbolDataRegex("\\[" + registers + " \\+ (" + symbol + ")\\]");
 
 class Assembler{
 
@@ -81,6 +102,17 @@ private:
   };
   vector<Section> sectionTable;
 
-  static int symbolId;
+  enum RelocationTypes{};
+  enum Binds{GLOBAL, LOCAL, UND};
 
+  static int symbolId;
+  struct Symbol{
+    int id;
+    string name;
+    int offset;
+    int sectionId;
+    Binds bind;
+    bool defined;
+  };
+  vector<Symbol> symbolTable;
 };
