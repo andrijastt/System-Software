@@ -192,14 +192,19 @@ int Assembler::pass(){
       this->outputFile << "Found instruction with one register as operand: " << m.str(0) << endl;
       
       smatch m1;
-      regex_search(s, m1, symbolRegex);
+      regex_search(s, m1, symbolOnlyRegex);
       string instruction = m1.str(0);
 
       this->outputFile << "Insturction: " << instruction << endl;
 
-      if(instruction == "iret" || instruction == ""){
-        locationCounter+=2;
-        locationCounterGlobal+=2;
+      if(instruction == "push" || instruction == "pop"){
+        locationCounter+=3;
+        locationCounterGlobal+=3;
+      } else {
+        if (instruction == "int" || instruction == "not"){
+          locationCounter+=2;
+          locationCounterGlobal+=2;
+        }
       }
 
       regex_search(s, m1, registersRegex);
@@ -246,54 +251,72 @@ int Assembler::pass(){
       // register direct
       if(regex_search(s1, m1, registerDirectJumpRegex)){
         this->outputFile << "Jump Register direct value found!" << endl;
+        locationCounter+=3;
+        locationCounterGlobal+=3;
         continue;
       }
 
       // PC REL with symbol
       if(regex_search(s1, m1, pcRelSymbolJumpRegex)){
         this->outputFile << "Jump PC REL with symbol found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // register indirect with literal
       if(regex_search(s1, m1, registerIndirectLiteralJumpRegex)){
         this->outputFile << "Jump Register indirect with literal value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // register indirect with symbol
       if(regex_search(s1, m1, registerIndirectSymbolJumpRegex)){
         this->outputFile << "Jump Register indirect with symbol value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // register indirect
       if(regex_search(s1, m1, registerIndirectJumpRegex)){
         this->outputFile << "Jump Register indirect value found!" << endl;
+        locationCounter+=3;
+        locationCounterGlobal+=3;
         continue;
       }
 
       // memory value literal
       if(regex_search(s1, m1, valueMemLiteralJumpRegex)){
         this->outputFile << "Jump Memory literal value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // memory value symbol
       if(regex_search(s1, m1, valueMemSymbolJumpRegex)){
         this->outputFile << "Jump Memory symbol value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // literal value
       if(regex_search(s1, m1, literalRegex)){
         this->outputFile << "Jump literal value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // symbol value
       if(regex_search(s1, m1, symbolOnlyRegex)){
         this->outputFile << "Jump symbol value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
@@ -328,18 +351,24 @@ int Assembler::pass(){
       // PC REL with symbol
       if(regex_search(s1, m1, pcRelSymbolDataRegex)){
         this->outputFile << "PC REL with symbol found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // memory value literal
       if(regex_search(s1, m1, valueLiteralDataRegex)){
         this->outputFile << "Literal value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // memory value symbol
       if(regex_search(s1, m1, valueSymbolDataRegex)){
         this->outputFile << "Symbol value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
@@ -347,36 +376,50 @@ int Assembler::pass(){
       if(regex_search(s1, m1, registersRegex)){
         this->outputFile << "Register direct value found!" << endl;
         s1 = m1.suffix().str();
+        locationCounter+=3;
+        locationCounterGlobal+=3;
+        continue;
       }
 
       // register indirect
       if(regex_search(s1, m1, registerIndirectDataRegex)){
         this->outputFile << "Register indirect value found!" << endl;
+        locationCounter+=3;
+        locationCounterGlobal+=3;
         continue;
       }
 
       // register indirect with literal
       if(regex_search(s1, m1, registerIndirectLiteralDataRegex)){
         this->outputFile << "Register indirect with literal value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // register indirect with symbol
       if(regex_search(s1, m1, registerIndirectSymbolDataRegex)){
         this->outputFile << "Register indirect with literal value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // literal value
       if(regex_search(s1, m1, literalRegex)){
         this->outputFile << "Memory literal value found!" << endl;
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         continue;
       }
 
       // symbol value
       if(regex_search(s1, m1, symbolRegex)){
-        if(!regex_search(s1, m1, registersRegex))
+        if(!regex_search(s1, m1, registersRegex)){
+          locationCounter+=5;
+          locationCounterGlobal+=5;
           this->outputFile << "Memory symbol value found!" << endl;
+        }
         continue;
       }
       
