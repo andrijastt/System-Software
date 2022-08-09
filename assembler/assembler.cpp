@@ -4,6 +4,12 @@
 int Assembler::sectionId = 0;
 int Assembler::symbolId = 0;
 
+/**
+ * @brief Construct a new Assembler:: Assembler object
+ * 
+ * @param outputFile file where we output assembler pass
+ * @param inputFile file that we are reading
+ */
 Assembler::Assembler(string outputFile, string inputFile) throw(){
   this->outputFileString = outputFile;
   this->inputFileString = inputFile;
@@ -14,8 +20,29 @@ Assembler::Assembler(string outputFile, string inputFile) throw(){
   section.length = 0;
   section.name = "UND";
   sectionTable.push_back(section);
+
+  symbolTable.clear();
+  Symbol symbol;
+  symbol.id = symbolId++;
+  symbol.name = "";
+  symbol.offset = 0;
+  symbol.sectionId = 0;
+  symbol.value = 0;
+  symbol.size = 0;
+  symbol.type = NOTYP;
+  symbol.bind = LOCAL;
+  symbol.defined = false;
+  symbol.type = NOTYP;
+  symbolTable.push_back(symbol);
+
 }
 
+/**
+ * @brief we open files assigned in constructor
+ * 
+ * @return true if input file exists, it is good
+ * @return false if input file doesn't exist, exception
+ */
 bool Assembler::openFiles(){
   this->inputFile.open(inputFileString, ios::in);
   this->outputFile.open(outputFileString, ios::out|ios::trunc);
@@ -27,6 +54,10 @@ bool Assembler::openFiles(){
   }
 }
 
+/**
+ * @brief we pass through the input file and remove comments, tabs, extra spaces, etc.
+ * 
+ */
 void Assembler::setGoodLines(){
 
   string line;
@@ -47,6 +78,11 @@ void Assembler::setGoodLines(){
 
 }
 
+/**
+ * @brief One and only pass of assembler
+ * 
+ * @return int 0 - it is good, -1 - syntax error, -2 - some labels or code are not in section
+ */
 int Assembler::pass(){
 
   int locationCounter = 0;
@@ -54,6 +90,8 @@ int Assembler::pass(){
   int globalBase = 0;
   Section currentSection;
   currentSection.name = "";
+
+  int currentSectionId = -1;
 
   for(string s: goodLines){
     smatch m;
@@ -73,9 +111,48 @@ int Assembler::pass(){
       smatch m1;
       string s1 = m.str(0);
       regex_search(s1, m1, symbolRegex);
-      this->outputFile << "Label name: " << m1.str(0) << endl;     // we take label name and check if symbol exists, is it duplcate...
+      string labelName = m1.str(0);
+      this->outputFile << "Label name: " << m1.str(0) << endl;      // we take label name and check if symbol exists, is it duplcate...
+      s = m.suffix().str();                                         // remove label from the string
 
-      s = m.suffix().str();                            // remove label from the string
+      if(currentSectionId == -1){
+        return -2;
+      }
+
+      bool found = false;
+      int i = 0;
+      for(Symbol sym: symbolTable){
+        if(sym.name == labelName){
+          if(sym.defined){
+            return -1;
+          }
+
+          sym.defined = true;
+          sym.value = 0;
+          sym.offset = locationCounter;
+          sym.sectionId = currentSectionId;
+          found = true;
+
+          symbolTable.at(i) = sym;
+
+          break;
+        }
+        i++;
+      }
+
+      if(!found){
+        Symbol sym;
+        sym.name = labelName;
+        sym.value = 0;
+        sym.defined = true;
+        sym.bind = LOCAL;
+        sym.offset = locationCounter;
+        sym.type = NOTYP;
+        sym.id = symbolId++;
+        sym.sectionId = currentSectionId;
+        symbolTable.push_back(sym);
+      }
+
     }
 
     // global directive
@@ -89,7 +166,30 @@ int Assembler::pass(){
 
       while(regex_search(s1, m1, symbolRegex)){
         this->outputFile << "Symbol name: " << m1.str(0) << endl;
+        string symbolName = m1.str(0);
         s1 = m1.suffix().str();
+
+        bool found = false;
+        for(Symbol sym: symbolTable){
+          if(sym.name == symbolName){
+            sym.bind = GLOBAL;
+            found = true;
+            break;
+          }
+        }
+
+        if(!found){
+          Symbol sym;
+          sym.name = symbolName;
+          sym.defined = false;
+          sym.size = 0;
+          sym.value = 0;
+          sym.type = NOTYP;
+          sym.bind = GLOBAL;
+          sym.offset = locationCounter;
+          sym.id = symbolId++;
+          symbolTable.push_back(sym);
+        }
       }
       
     }
@@ -105,7 +205,30 @@ int Assembler::pass(){
 
       while(regex_search(s1, m1, symbolRegex)){
         this->outputFile << "Symbol name: " << m1.str(0) << endl;
+        string symbolName = m1.str(0);
         s1 = m1.suffix().str();
+
+        bool found = false;
+        for(Symbol sym: symbolTable){
+          if(sym.name == symbolName){
+            sym.bind = GLOBAL;
+            found = true;
+            break;
+          }
+        }
+
+        if(!found){
+          Symbol sym;
+          sym.name = symbolName;
+          sym.defined = false;
+          sym.size = 0;
+          sym.value = 0;
+          sym.type = NOTYP;
+          sym.bind = GLOBAL;
+          sym.offset = locationCounter;
+          sym.id = symbolId++;
+          symbolTable.push_back(sym);
+        }
       }
     }
 
@@ -132,6 +255,26 @@ int Assembler::pass(){
         sectionTable.push_back(currentSection);
         currentSection = section;
         locationCounter = 0;
+      }
+
+      bool found = false;
+      for(Symbol sym: symbolTable){
+        if(sym.name == s1){
+          return -1;            // mislim da ne moze da postoje vise sekcija sa isitm imenom ili labela i sekcija sa istim imenom
+        }
+      }
+
+      if(!found){
+        Symbol sym;
+        sym.name = s1;
+        sym.defined = false;
+        sym.size = 0;
+        sym.value = 0;
+        sym.type = SCTN;
+        sym.bind = GLOBAL;
+        currentSectionId = sym.sectionId = sym.id = symbolId++;
+        sym.offset = locationCounter;
+        symbolTable.push_back(sym);
       }
     }
 
@@ -216,9 +359,12 @@ int Assembler::pass(){
 
       smatch m1;
       string s1 = m.str(0);
-      regex_search(s1, m1, symbolRegex);                // remove instruction name
+      regex_search(s1, m1, symbolOnlyRegex);                // remove instruction name
       string instruction = m1.str(0);
       s1 = m1.suffix().str();
+
+      regex_search(instruction, m1, symbolOnlyRegex);                // remove instruction name
+      instruction = m1.str(0);
 
       this->outputFile << "Instruction: " << instruction << endl;
 
@@ -245,6 +391,10 @@ int Assembler::pass(){
       regex_search(s1, m1, symbolRegex);                // remove instruction name
       string instruction = m1.str(0);
       s1 = m1.suffix().str();
+
+      regex_search(instruction, m1, symbolOnlyRegex);                // remove instruction name
+      instruction = m1.str(0);
+
       this->outputFile << "Instruction: " << instruction << endl;
       this->outputFile << "Operand: " << s1 << endl;
 
@@ -334,6 +484,9 @@ int Assembler::pass(){
       regex_search(s1, m1, symbolRegex);                // remove instruction name
       instruction = m1.str(0);
       s1 = m1.suffix().str();
+
+      regex_search(instruction, m1, symbolOnlyRegex);                // remove instruction name
+      instruction = m1.str(0);
 
       this->outputFile << "Instruction: " << instruction << endl;
       this->outputFile << "Operands: " << s1 << endl;
@@ -442,6 +595,55 @@ int Assembler::pass(){
     this->outputFile << s.id << "\t" << s.base << "\t" << s.length << "\t" << s.name << "\n";
   }
 
+  this->outputFile << endl;
+  this->outputFile << endl;
+  this->outputFile << endl;
+  this->outputFile << endl;
+
+  this->outputFile << "SYMBOL TABLE\n";
+  this->outputFile << "Num\tValue\tSize\tType\tBind\tNdx\tName\n";
+  for(Symbol sym: symbolTable){
+    this->outputFile << sym.id << "\t" << std::hex << sym.value << "\t" << std::dec << sym.size << "\t"; 
+
+    switch(sym.type){
+
+      case NOTYP:
+        this->outputFile << "NOTYP\t";
+        break;
+      
+      case SCTN:
+        this->outputFile << "SCTN\t";
+        break;
+    }
+
+    switch(sym.bind){
+      case GLOBAL:
+        this->outputFile << "GLOB\t";
+        break;
+
+      case LOCAL:
+        this->outputFile << "LOC\t";
+        break;
+
+      case UND:
+        this->outputFile << "UND\t";
+        break;
+    }
+
+    switch(sym.sectionId){
+
+      case 0:
+        this->outputFile << "UND\t";
+        break;
+
+      default:
+        this->outputFile << sym.sectionId << "\t";
+        break;
+    }
+
+    this->outputFile << sym.name << "\n";
+  }
+
   return 0;
 }
 
@@ -474,9 +676,14 @@ int main(int argc, char const *argv[]){
     }
 
     assembler.setGoodLines();
-    if(assembler.pass() < 0){
+    int ret = assembler.pass();
+    if(ret == -1){
       throw BadSyntaxException();
     }
+    if(ret == -2){
+      throw NoSectionException();
+    }
+
     
   }
   catch(const std::exception& e){

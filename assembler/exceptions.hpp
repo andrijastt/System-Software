@@ -20,6 +20,16 @@ class BadSyntaxException: public std::exception{
 
 public:
   const char* what() const throw(){
-    return "Syntax is bad";
+
+    return "Syntax error at line: ";
+  };
+};
+
+class NoSectionException: public std::exception{
+
+public:
+  const char* what() const throw(){
+
+    return "Not in section @ line: ";
   };
 };

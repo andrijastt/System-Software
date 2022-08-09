@@ -104,6 +104,11 @@ private:
 
   enum RelocationTypes{};
   enum Binds{GLOBAL, LOCAL, UND};
+  enum SymbolType{NOTYP, SCTN};
+
+  struct Forwarding{
+    int patch;                        // address that needs to be patched
+  };
 
   static int symbolId;
   struct Symbol{
@@ -111,8 +116,14 @@ private:
     string name;
     int offset;
     int sectionId;
+    int value;
+    int size;
     Binds bind;
+    SymbolType type;
     bool defined;
+    vector<Forwarding> forwardingTable;
   };
   vector<Symbol> symbolTable;
+
+  Symbol findSymbol();
 };
