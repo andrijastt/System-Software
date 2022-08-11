@@ -4,6 +4,7 @@
 #include <cstring>
 #include <regex>
 #include <fstream>
+#include <iomanip>
 
 using namespace std;
 
@@ -107,6 +108,7 @@ private:
   enum SymbolType{NOTYP, SCTN};
 
   struct Forwarding{
+    string sectionName;
     int patch;                        // address that needs to be patched
   };
 
@@ -126,4 +128,20 @@ private:
   vector<Symbol> symbolTable;
 
   Symbol findSymbol();
+
+  struct MachineCode{
+    // string address;
+    string value;
+    string sectionName;
+  };
+  vector<vector<MachineCode>> machineCode;
+
+  vector<MachineCode> addToCode(string value, string sectionName, vector<MachineCode> machineCodes){
+    MachineCode mc;
+    mc.value = value;
+    mc.sectionName = sectionName;
+    machineCodes.push_back(mc);
+    return machineCodes;
+  };
+  void printOutput();
 };
