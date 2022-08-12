@@ -32,6 +32,7 @@ regex labelRegex("^" + symbol + ":[ ]*");
 // regex labelOnlyRegex("^" + symbol + ":[ ]*$");
 regex symbolRegex(symbol + "[ ]*");
 regex symbolOnlyRegex(symbol);
+regex symbolNoBracketsRegex(symbol + "[^\\[\\]\\(\\) +-]");
 regex literalRegex(literal);
 regex symbolOrLiteralRegex(symbolOrLiteral);
 regex operandsForJumpsRegex(operandsForJumps);
@@ -60,6 +61,7 @@ regex commentsRegex("#.*");
 regex spacesRegex("[ ]*");
 regex endSpacesRegex("[ ]*$");
 regex commaRegex(", ");
+regex bracketsRegex("[\\[\\]\\(\\)]");
 
 // regex for operands for jumps
 regex pcRelSymbolJumpRegex("%" + symbol);
@@ -89,6 +91,9 @@ public:
 
 private:
 
+  void printOutput();
+  int searchSymbol(string symbolName);
+
   string outputFileString, inputFileString;
   ifstream inputFile;
   ofstream outputFile;
@@ -106,10 +111,13 @@ private:
   enum RelocationTypes{};
   enum Binds{GLOBAL, LOCAL, UND};
   enum SymbolType{NOTYP, SCTN};
+  enum ForwardingType{TEXT, RELO, DATA};
 
   struct Forwarding{
-    string sectionName;
+    ForwardingType type;
+    int sectionID;
     int patch;                        // address that needs to be patched
+    int addend;
   };
 
   static int symbolId;
@@ -143,5 +151,45 @@ private:
     machineCodes.push_back(mc);
     return machineCodes;
   };
-  void printOutput();
+
+  void addSymbolOrForwardElement(int ret, string symName, int currentSectionId, int locationCounter, 
+    Section currentSection){
+    if(ret == -1){
+      Symbol symb;
+      symb.name = symName;
+      symb.bind = UND;
+      symb.defined = false;
+      symb.id = symbolId++;
+      symb.offset = -1;       // unknown
+      symb.size = 0;
+      symb.type = NOTYP;
+      symb.value = 0;
+      symb.sectionId = currentSectionId;
+
+      Forwarding fwd;
+      fwd.type = TEXT;
+      fwd.addend = -2;
+      fwd.patch = locationCounter;
+      fwd.sectionID = currentSection.id;
+
+      symb.forwardingTable.push_back(fwd);
+      symbolTable.push_back(symb);
+    } else {                                        // there is symbol at table
+
+      Symbol symb = symbolTable.at(ret);
+      if(symb.defined){
+        //TODO
+      } else {  
+        Forwarding fwd;
+        fwd.type = TEXT;
+        fwd.addend = -2;
+        fwd.patch = locationCounter;
+        fwd.sectionID = currentSection.id;
+
+        symb.forwardingTable.push_back(fwd);
+        symbolTable.at(ret) = symb;
+      }
+      
+    }
+  }
 };
