@@ -29,7 +29,6 @@ string operandsForJumps = literal + "|" + symbol + "|%" + symbol + "|\\*(" + lit
 regex registersRegex(registers);
 regex labelRegex("^" + symbol + ":[ ]*");
 
-// regex labelOnlyRegex("^" + symbol + ":[ ]*$");
 regex symbolRegex(symbol + "[ ]*");
 regex symbolOnlyRegex(symbol);
 regex symbolNoBracketsRegex(symbol + "[^\\[\\]\\(\\) +-]");

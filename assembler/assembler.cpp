@@ -233,8 +233,10 @@ void Assembler::printOutput(){
  */
 int Assembler::pass(){
 
-  // size_t lastindex = outputFileString.find_last_of(".");
-  // string outputFileHelpString = outputFileString.substr(0, lastindex) + "Helper.o";
+  size_t lastindex = outputFileString.find_last_of(".");
+  string outputFileHelpString = outputFileString.substr(0, lastindex) + "Helper.o";
+  ofstream outputHelp;
+  outputHelp.open(outputFileHelpString, ios::out|ios::trunc);
 
   int locationCounter = 0;
   int locationCounterGlobal = 0;
@@ -251,20 +253,20 @@ int Assembler::pass(){
 
     // line is emtpy
     if(s == ""){
-      this->outputFile << "Skipped line" << endl;
+      outputHelp << "Skipped line" << endl;
       continue;
     }
 
     // find label
     if(regex_search(s, m, labelRegex)){
 
-      this->outputFile << "Found label: " << m.str(0) << endl;
+      outputHelp << "Found label: " << m.str(0) << endl;
       
       smatch m1;
       string s1 = m.str(0);
       regex_search(s1, m1, symbolRegex);
       string labelName = m1.str(0);
-      this->outputFile << "Label name: " << m1.str(0) << endl;      // we take label name and check if symbol exists, is it duplcate...
+      outputHelp << "Label name: " << labelName << endl;      // we take label name and check if symbol exists, is it duplcate...
       s = m.suffix().str();                                         // remove label from the string
 
       if(currentSectionId == -1){
@@ -305,11 +307,13 @@ int Assembler::pass(){
         symbolTable.push_back(sym);
       }
 
+      outputHelp << "What is left after removing label: " << s << endl;
+
     }
 
     // global directive
     if(regex_search(s, m, globalRegex)){
-      this->outputFile << "Found global directive: " << m.str(0) << endl;
+      outputHelp << "Found global directive: " << m.str(0) << endl;
 
       smatch m1;
       string s1 = m.str(0);
@@ -317,7 +321,7 @@ int Assembler::pass(){
       s1 = m1.suffix().str();
 
       while(regex_search(s1, m1, symbolRegex)){
-        this->outputFile << "Symbol name: " << m1.str(0) << endl;
+        outputHelp << "Symbol name: " << m1.str(0) << endl;
         string symbolName = m1.str(0);
         s1 = m1.suffix().str();
 
@@ -346,12 +350,13 @@ int Assembler::pass(){
           symbolTable.push_back(sym);
         }
       }
+      s = m.suffix().str();
       
     }
 
     // extern directive
     if(regex_search(s, m, externRegex)){
-      this->outputFile << "Found extern directive: " << m.str(0) << endl;
+      outputHelp << "Found extern directive: " << m.str(0) << endl;
 
       smatch m1;
       string s1 = m.str(0);
@@ -359,7 +364,7 @@ int Assembler::pass(){
       s1 = m1.suffix().str();
 
       while(regex_search(s1, m1, symbolRegex)){
-        this->outputFile << "Symbol name: " << m1.str(0) << endl;
+        outputHelp << "Symbol name: " << m1.str(0) << endl;
         string symbolName = m1.str(0);
         s1 = m1.suffix().str();
 
@@ -388,18 +393,19 @@ int Assembler::pass(){
           symbolTable.push_back(sym);
         }
       }
+      s = m.suffix().str();
     }
 
     // section directive
     if(regex_search(s, m, sectionRegex)){
-      this->outputFile << "Found section directive: " << m.str(0) << endl;
+      outputHelp << "Found section directive: " << m.str(0) << endl;
 
       smatch m1;
       string s1 = m.str(0);
       regex_search(s1, m1, symbolRegex);              // remove section from symbols
       s1 = m1.suffix().str();
 
-      this->outputFile << "Section name: " << s1 << endl;
+      outputHelp << "Section name: " << s1 << endl;
 
       Section section;
       section.id = sectionId++;
@@ -436,21 +442,27 @@ int Assembler::pass(){
         sym.offset = locationCounter;
         symbolTable.push_back(sym);
       }
+      s = m.suffix().str();
     }
 
     // word directive
     if(regex_search(s, m, wordRegex)){
-      this->outputFile << "Found word directive: " << m.str(0) << endl;
+      outputHelp << "Found word directive: " << m.str(0) << endl;
+
+      if(currentSectionId == -1){
+        return -2;
+      }
 
       smatch m1;
       string s1 = m.str(0);
+      s = m.suffix().str();
       regex_search(s1, m1, symbolRegex);              // remove word from symbols
       s1 = m1.suffix().str();
 
       int cnt = 0;
       while(regex_search(s1, m1, symbolOrLiteralRegex)){
         cnt++;
-        this->outputFile << "Symbol or Literal val: " << m1.str(0) << endl;
+        outputHelp << "Symbol or Literal val: " << m1.str(0) << endl;
         string val = m1.str(0);
         s1 = m1.suffix().str();
 
@@ -470,13 +482,18 @@ int Assembler::pass(){
 
     // skip directive
     if(regex_search(s, m, skipRegex)){
-      this->outputFile << "Found skip directive: " << m.str(0) << endl;
+      outputHelp << "Found skip directive: " << m.str(0) << endl;
+      s = m.suffix().str();
+
+      if(currentSectionId == -1){
+        return -2;
+      }
 
       smatch m1;
       regex_search(s, m1, literalRegex);              
       string literal = m1.str(0);
-
-      this->outputFile << "Literal: " << literal << endl;      
+      s = m1.suffix().str();
+      outputHelp << "Literal: " << literal << endl;      
 
       int num = stoi(literal);
       locationCounter += num;
@@ -489,24 +506,29 @@ int Assembler::pass(){
 
     // end directive
     if(regex_search(s, m, endRegex)){
-      this->outputFile << "Found end directive: " << m.str(0) << endl;
+      outputHelp << "Found end directive: " << m.str(0) << endl;
       break;
     }
 
     // no operand isntruction
     if(regex_search(s, m, noOperandsInstructions)){
-      this->outputFile << "Found instruction with no operands: " << m.str(0) << endl;
+      outputHelp << "Found instruction with no operands: " << m.str(0) << endl;
+
+      if(currentSectionId == -1){
+        return -2;
+      }
+
       string instruction = m.str(0);
       s = m.suffix().str();    
 
       if(instruction == "halt"){
-         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
       } else {
         if(instruction == "iret"){
-           currentSectionMachineCode = addToCode("20", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("20", currentSection.name, currentSectionMachineCode);
         } else {
           if(instruction == "ret"){
-             currentSectionMachineCode = addToCode("40", currentSection.name, currentSectionMachineCode);
+            currentSectionMachineCode = addToCode("40", currentSection.name, currentSectionMachineCode);
           }
         }
       }
@@ -517,32 +539,36 @@ int Assembler::pass(){
 
     // one register instruction
     if(regex_search(s, m, oneRegisterInsturctions)){
-      this->outputFile << "Found instruction with one register as operand: " << m.str(0) << endl;
-      
+      outputHelp << "Found instruction with one register as operand: " << m.str(0) << endl;
+      s = m.suffix().str();
+      if(currentSectionId == -1){
+        return -2;
+      }
+
       smatch m1;
       regex_search(s, m1, symbolOnlyRegex);
       string instruction = m1.str(0);
 
-      this->outputFile << "Insturction: " << instruction << endl;
+      outputHelp << "Insturction: " << instruction << endl;
 
       regex_search(s, m1, registersRegex);
-      this->outputFile << "Register found: " << m1.str(0) << endl;
+      outputHelp << "Register found: " << m1.str(0) << endl;
       string reg = m1.str(0);
-      regex_search(reg, m1, literalRegex);
-      string num = m1.str(0);
-
+      
       if(instruction == "push" || instruction == "pop"){
 
         if(instruction == "push"){
-           currentSectionMachineCode = addToCode("B0", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("B0", currentSection.name, currentSectionMachineCode);
 
           if(reg == "sp"){
-             currentSectionMachineCode = addToCode("66", currentSection.name, currentSectionMachineCode);
+            currentSectionMachineCode = addToCode("66", currentSection.name, currentSectionMachineCode);
           } else {
             if(reg == "psw"){
-               currentSectionMachineCode = addToCode("86", currentSection.name, currentSectionMachineCode);
+              currentSectionMachineCode = addToCode("86", currentSection.name, currentSectionMachineCode);
             } else {
-               currentSectionMachineCode = addToCode(num +"6", currentSection.name, currentSectionMachineCode);              
+              regex_search(reg, m1, literalRegex);
+              string num = m1.str(0);
+              currentSectionMachineCode = addToCode(num +"6", currentSection.name, currentSectionMachineCode);              
             }
           }
 
@@ -577,7 +603,9 @@ int Assembler::pass(){
             } else {
               if(reg == "psw"){
                 currentSectionMachineCode = addToCode("8F", currentSection.name, currentSectionMachineCode);
-              } else {                
+              } else {
+                regex_search(reg, m1, literalRegex);
+                string num = m1.str(0);                
                 currentSectionMachineCode = addToCode(num + "F", currentSection.name, currentSectionMachineCode);              
               }
             }
@@ -605,10 +633,14 @@ int Assembler::pass(){
     }
 
     if(regex_search(s, m, twoRegistersInstructions)){
-      this->outputFile << "Found instruction with two registers as operands: " << m.str(0) << endl;
+      outputHelp << "Found instruction with two registers as operands: " << m.str(0) << endl;
+      if(currentSectionId == -1){
+        return -2;
+      }
 
       smatch m1;
       string s1 = m.str(0);
+      s = m.suffix().str();
       regex_search(s1, m1, symbolOnlyRegex);                // remove instruction name
       string instruction = m1.str(0);
       s1 = m1.suffix().str();
@@ -616,16 +648,16 @@ int Assembler::pass(){
       regex_search(instruction, m1, symbolOnlyRegex);                // remove instruction name
       instruction = m1.str(0);
 
-      this->outputFile << "Instruction: " << instruction << endl;
+      outputHelp << "Instruction: " << instruction << endl;
 
       regex_search(s, m1, registersRegex);
       string r1 = m1.str(0);
-      this->outputFile << "Register found: " << m1.str(0) << endl;
+      outputHelp << "Register found: " << m1.str(0) << endl;
       s = m1.suffix().str();
 
       regex_search(s, m1, registersRegex);
       string r2 = m1.str(0);
-      this->outputFile << "Register found: " << m1.str(0) << endl;
+      outputHelp << "Register found: " << m1.str(0) << endl;
       s = m1.suffix().str();
 
       string num;
@@ -732,7 +764,7 @@ int Assembler::pass(){
     }
 
     if(regex_search(s, m, oneOperandInstructions)){
-      this->outputFile << "Found instruction with one operand: " << m.str(0) << endl;
+      outputHelp << "Found instruction with one operand: " << m.str(0) << endl;
 
       smatch m1;
       string s1 = m.str(0);
@@ -743,8 +775,8 @@ int Assembler::pass(){
       regex_search(instruction, m1, symbolOnlyRegex);                // remove instruction name
       instruction = m1.str(0);
 
-      this->outputFile << "Instruction: " << instruction << endl;
-      this->outputFile << "Operand: " << s1 << endl;
+      outputHelp << "Instruction: " << instruction << endl;
+      outputHelp << "Operand: " << s1 << endl;
 
       if(instruction == "call"){
         currentSectionMachineCode = addToCode("30", currentSection.name, currentSectionMachineCode);
@@ -768,11 +800,12 @@ int Assembler::pass(){
 
       // register direct
       if(regex_search(s1, m1, registerDirectJumpRegex)){
-        this->outputFile << "Jump Register direct value found!" << endl;
+        outputHelp << "Jump Register direct value found!" << endl;
 
         regex_search(s1, m1, registersRegex);
         string reg = m1.str(0);
         string num;
+        outputHelp << "Register found: " << reg << endl; 
 
         if(reg == "sp"){
           num = "6";
@@ -798,10 +831,11 @@ int Assembler::pass(){
 
       // PC REL with symbol
       if(regex_search(s1, m1, pcRelSymbolJumpRegex)){
-        this->outputFile << "Jump PC REL with symbol found!" << endl;
+        outputHelp << "Jump PC REL with symbol found!" << endl;
         
         if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
+          outputHelp << "Symbol found: " << symName << endl;
           int ret = searchSymbol(symName);
           addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
         }
@@ -819,12 +853,14 @@ int Assembler::pass(){
 
       // register indirect with literal
       if(regex_search(s1, m1, registerIndirectLiteralJumpRegex)){
-        this->outputFile << "Jump Register indirect with literal value found!" << endl;
+        outputHelp << "Jump Register indirect with literal value found!" << endl;
 
         regex_search(s1, m1, registersRegex);
         string reg = m1.str(0);
         s1 = m1.suffix().str();
         string num;
+
+        outputHelp << "Register found: " << reg << endl;
 
         if(reg == "sp"){
           num = "6";
@@ -843,6 +879,8 @@ int Assembler::pass(){
         regex_search(s1, m1, literalRegex);
         string lit = m1.str(0);
 
+        outputHelp << "Literal found: " << lit << endl;
+
         currentSectionMachineCode = addToCode("F" + num, currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
         // TODO
@@ -856,12 +894,14 @@ int Assembler::pass(){
 
       // register indirect with symbol
       if(regex_search(s1, m1, registerIndirectSymbolJumpRegex)){
-        this->outputFile << "Jump Register indirect with symbol value found!" << endl;
+        outputHelp << "Jump Register indirect with symbol value found!" << endl;
 
         regex_search(s1, m1, registersRegex);
         string reg = m1.str(0);
         s1 = m1.suffix().str();
         string num;
+
+        outputHelp << "Register found: " << reg << endl;
 
         if(reg == "sp"){
           num = "6";
@@ -882,6 +922,7 @@ int Assembler::pass(){
           s1 = m1.suffix().str();
           regex_search(symName, m1, symbolNoBracketsRegex);
           symName = m1.str(0);
+          outputHelp << "Symbol found: " << symName << endl;
           int ret = searchSymbol(symName);
           addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
         }
@@ -899,11 +940,13 @@ int Assembler::pass(){
 
       // register indirect
       if(regex_search(s1, m1, registerIndirectJumpRegex)){
-        this->outputFile << "Jump Register indirect value found!" << endl;
+        outputHelp << "Jump Register indirect value found!" << endl;
 
         regex_search(s1, m1, registersRegex);
         string reg = m1.str(0);
         string num;
+
+        outputHelp << "Register found:" << reg << endl;
 
         if(reg == "sp"){
           num = "6";
@@ -929,11 +972,12 @@ int Assembler::pass(){
 
       // memory value literal
       if(regex_search(s1, m1, valueMemLiteralJumpRegex)){
-        this->outputFile << "Jump Memory literal value found!" << endl;
+        outputHelp << "Jump Memory literal value found!" << endl;
 
         if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
+          outputHelp << "Symbol found: " << symName << endl;
           addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
         }
 
@@ -950,10 +994,11 @@ int Assembler::pass(){
 
       // memory value symbol
       if(regex_search(s1, m1, valueMemSymbolJumpRegex)){
-        this->outputFile << "Jump Memory symbol value found!" << endl;
+        outputHelp << "Jump Memory symbol value found!" << endl;
 
         regex_search(s1, m1, literalRegex);
         string lit = m1.str(0);
+        outputHelp << "Literal found: " << lit << endl;
 
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
@@ -968,9 +1013,10 @@ int Assembler::pass(){
 
       // literal value
       if(regex_search(s1, m1, literalRegex)){
-        this->outputFile << "Jump literal value found!" << endl;
+        outputHelp << "Jump literal value found!" << endl;
 
         string lit = m1.str(0);
+        outputHelp << "Literal found: " << lit << endl;
 
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
@@ -985,10 +1031,11 @@ int Assembler::pass(){
 
       // symbol value
       if(regex_search(s1, m1, symbolOnlyRegex)){
-        this->outputFile << "Jump symbol value found!" << endl;
+        outputHelp << "Jump symbol value found!" << endl;
 
         string symName = m1.str(0);
         int ret = searchSymbol(symName);
+        outputHelp << "Symbol found: " << symName << endl;
         addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
 
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
@@ -1005,7 +1052,7 @@ int Assembler::pass(){
     }
 
     if(regex_search(s, m, oneOperandOneRegisterInstructions)){
-      this->outputFile << "Found instruction with one operand and one register: " << m.str(0) << endl;
+      outputHelp << "Found instruction with one operand and one register: " << m.str(0) << endl;
 
       smatch m1;
       string s1 = m.str(0);
@@ -1020,14 +1067,14 @@ int Assembler::pass(){
       regex_search(instruction, m1, symbolOnlyRegex);                // remove instruction name
       instruction = m1.str(0);
 
-      this->outputFile << "Instruction: " << instruction << endl;
-      this->outputFile << "Operands: " << s1 << endl;
+      outputHelp << "Instruction: " << instruction << endl;
+      outputHelp << "Operands: " << s1 << endl;
 
       regex_search(s1, m1, registersRegex);
       string reg = m1.str(0);
       s1 = m1.suffix().str();
 
-      this->outputFile << "Register found: " << reg << endl;
+      outputHelp << "Register found: " << reg << endl;
 
       if(regex_search(s1, m1, commaRegex)){
         s1 = m1.suffix().str();
@@ -1053,11 +1100,12 @@ int Assembler::pass(){
 
       // PC REL with symbol
       if(regex_search(s1, m1, pcRelSymbolDataRegex)){
-        this->outputFile << "PC REL with symbol found!" << endl;
+        outputHelp << "PC REL with symbol found!" << endl;
 
         if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
+          outputHelp << "Symbol found: " << symName << endl;
           addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
         }
 
@@ -1074,10 +1122,11 @@ int Assembler::pass(){
 
       // memory value literal
       if(regex_search(s1, m1, valueLiteralDataRegex)){
-        this->outputFile << "Literal value found!" << endl;
+        outputHelp << "Literal value found!" << endl;
 
         regex_search(s1, m1, literalRegex);
         string lit = m1.str(0);
+        outputHelp << "Literal found: " << lit << endl;
 
         currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
@@ -1092,11 +1141,12 @@ int Assembler::pass(){
 
       // memory value symbol
       if(regex_search(s1, m1, valueSymbolDataRegex)){
-        this->outputFile << "Symbol value found!" << endl;
+        outputHelp << "Symbol value found!" << endl;
 
         if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
+          outputHelp << "Symbol found: " << symName << endl;
           addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
         }
 
@@ -1113,9 +1163,11 @@ int Assembler::pass(){
 
       // register direct
       if(regex_search(s1, m1, registersRegex)){
-        this->outputFile << "Register direct value found!" << endl;
+        outputHelp << "Register direct value found!" << endl;
         string reg2 = m1.str(0);
         s1 = m1.suffix().str();
+
+        outputHelp << "Register found: " << reg2 << endl;
 
         if(reg2 == "sp") num += "6";
         else if(reg2 == "psw") num += "8";
@@ -1134,10 +1186,11 @@ int Assembler::pass(){
 
       // register indirect
       if(regex_search(s1, m1, registerIndirectDataRegex)){
-        this->outputFile << "Register indirect value found!" << endl;
+        outputHelp << "Register indirect value found!" << endl;
 
         regex_search(s1, m1, registersRegex);
         string reg2 = m1.str(0);
+        outputHelp << "Register found: " << reg2 << endl;
 
         if(reg2 == "sp") num += "6";
         else if(reg2 == "psw") num += "8";
@@ -1156,7 +1209,7 @@ int Assembler::pass(){
 
       // register indirect with literal
       if(regex_search(s1, m1, registerIndirectLiteralDataRegex)){
-        this->outputFile << "Register indirect with literal value found!" << endl;
+        outputHelp << "Register indirect with literal value found!" << endl;
 
         regex_search(s1, m1, registersRegex);
         string reg2 = m1.str(0);
@@ -1164,6 +1217,9 @@ int Assembler::pass(){
         regex_search(s1, m1, literalRegex);
         string lit = m1.str(0);
         s1 = m1.suffix().str();
+
+        outputHelp << "Register found: " << reg2 << endl;
+        outputHelp << "Literal found: " << lit << endl;
 
         if(reg2 == "sp") num += "6";
         else if(reg2 == "psw") num += "8";
@@ -1185,14 +1241,16 @@ int Assembler::pass(){
 
       // register indirect with symbol
       if(regex_search(s1, m1, registerIndirectSymbolDataRegex)){
-        this->outputFile << "Register indirect with literal value found!" << endl;
+        outputHelp << "Register indirect with symbol value found!" << endl;
 
-         regex_search(s1, m1, registersRegex);
+        regex_search(s1, m1, registersRegex);
         string reg2 = m1.str(0);
+        outputHelp << "Register found: " << reg2 << endl;
         s1 = m1.suffix().str();
         if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
+          outputHelp << "Symbol found: " << symName << endl;
           addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
         }
 
@@ -1221,6 +1279,7 @@ int Assembler::pass(){
           if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
             string symName = m1.str(0);
             int ret = searchSymbol(symName);
+          outputHelp << "Symbol found: " << symName << endl;
             addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
           }
 
@@ -1232,17 +1291,19 @@ int Assembler::pass(){
 
           locationCounter+=5;
           locationCounterGlobal+=5;
-          this->outputFile << "Memory symbol value found!" << endl;
+          outputHelp << "Memory symbol value found!" << endl;
         }
         continue;
       }
 
       // literal value
       if(regex_search(s1, m1, literalRegex)){
-        this->outputFile << "Memory literal value found!" << endl;
+        outputHelp << "Memory literal value found!" << endl;
 
         string lit = m1.str(0);
         s1 = m1.suffix().str();
+
+        outputHelp << "Literal found: " << lit << endl;
 
         currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
@@ -1255,6 +1316,10 @@ int Assembler::pass(){
         continue;
       }
       
+    }
+
+    if(s != "") {
+      return -1;
     }
 
   }

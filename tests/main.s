@@ -86,5 +86,5 @@ destinations:
 .word mathSub
 .word mathMul
 .word mathDiv
-# .skip 123
+.skip 123
 .end
