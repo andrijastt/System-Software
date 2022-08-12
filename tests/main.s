@@ -20,7 +20,7 @@ my_start:
   call mathAdd # pc <= mathAdd
   str r0, value1
 
-  ldr r0, $1
+  ldr r0, $1 
   push r0
   ldr r0, $1
   push r0
@@ -86,5 +86,5 @@ destinations:
 .word mathSub
 .word mathMul
 .word mathDiv
-.skip 123
+# .skip 123
 .end

@@ -10,7 +10,7 @@ using namespace std;
 
 // helper strings
 string registers = "r[0-7]|sp|psw";
-string literal = "[-]?[0-9][0-9]*|0x[0-9a-fA-F]+";
+string literal = "0x[0-9a-fA-F]+|[-]?[0-9][0-9]*";
 string symbol = "[a-zA-Z][a-zA-z0-9_]*";
 
 string symbolOrLiteral = literal + "|" + symbol;
@@ -60,7 +60,7 @@ regex commentsRegex("#.*");
 regex spacesRegex("[ ]*");
 regex endSpacesRegex("[ ]*$");
 regex commaRegex(", ");
-regex bracketsRegex("[\\[\\]\\(\\)]");
+regex endBracketRegex("\\]");
 
 // regex for operands for jumps
 regex pcRelSymbolJumpRegex("%" + symbol);
@@ -107,7 +107,7 @@ private:
   };
   vector<Section> sectionTable;
 
-  enum RelocationTypes{};
+  enum RelocationType{R_16, R_PC16};
   enum Binds{GLOBAL, LOCAL, UND};
   enum SymbolType{NOTYP, SCTN};
   enum ForwardingType{TEXT, RELO, DATA};
@@ -143,6 +143,14 @@ private:
   };
   vector<vector<MachineCode>> machineCode;
 
+  struct Relocation{
+    int sectionId;
+    int offset;
+    RelocationType type;
+    int addend;
+    int symbolId;
+  };
+
   vector<MachineCode> addToCode(string value, string sectionName, vector<MachineCode> machineCodes){
     MachineCode mc;
     mc.value = value;
@@ -152,43 +160,5 @@ private:
   };
 
   void addSymbolOrForwardElement(int ret, string symName, int currentSectionId, int locationCounter, 
-    Section currentSection){
-    if(ret == -1){
-      Symbol symb;
-      symb.name = symName;
-      symb.bind = UND;
-      symb.defined = false;
-      symb.id = symbolId++;
-      symb.offset = -1;       // unknown
-      symb.size = 0;
-      symb.type = NOTYP;
-      symb.value = 0;
-      symb.sectionId = currentSectionId;
-
-      Forwarding fwd;
-      fwd.type = TEXT;
-      fwd.addend = -2;
-      fwd.patch = locationCounter;
-      fwd.sectionID = currentSection.id;
-
-      symb.forwardingTable.push_back(fwd);
-      symbolTable.push_back(symb);
-    } else {                                        // there is symbol at table
-
-      Symbol symb = symbolTable.at(ret);
-      if(symb.defined){
-        //TODO
-      } else {  
-        Forwarding fwd;
-        fwd.type = TEXT;
-        fwd.addend = -2;
-        fwd.patch = locationCounter;
-        fwd.sectionID = currentSection.id;
-
-        symb.forwardingTable.push_back(fwd);
-        symbolTable.at(ret) = symb;
-      }
-      
-    }
-  }
+    Section currentSection);
 };

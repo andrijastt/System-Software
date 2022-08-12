@@ -96,6 +96,56 @@ int Assembler::searchSymbol(string symbolName){
 }
 
 /**
+ * @brief adds Symbol to symbol table if it doesn't exist or to forward if it does
+ * 
+ * @param ret               if symbol is in symbol table or not
+ * @param symName           symbol name
+ * @param currentSectionId  id of current section
+ * @param locationCounter   current location counter
+ * @param currentSection    current section
+ */
+void Assembler::addSymbolOrForwardElement(int ret, string symName, int currentSectionId, int locationCounter, 
+  Section currentSection){
+    if(ret == -1){
+      Symbol symb;
+      symb.name = symName;
+      symb.bind = UND;
+      symb.defined = false;
+      symb.id = symbolId++;
+      symb.offset = -1;       // unknown
+      symb.size = 0;
+      symb.type = NOTYP;
+      symb.value = 0;
+      symb.sectionId = currentSectionId;
+
+      Forwarding fwd;
+      fwd.type = TEXT;
+      fwd.addend = -2;
+      fwd.patch = locationCounter;
+      fwd.sectionID = currentSection.id;
+
+      symb.forwardingTable.push_back(fwd);
+      symbolTable.push_back(symb);
+    } else {                                        // there is symbol at table
+
+      Symbol symb = symbolTable.at(ret);
+      if(symb.defined){
+        //TODO
+      } else {  
+        Forwarding fwd;
+        fwd.type = TEXT;
+        fwd.addend = -2;
+        fwd.patch = locationCounter;
+        fwd.sectionID = currentSection.id;
+
+        symb.forwardingTable.push_back(fwd);
+        symbolTable.at(ret) = symb;
+      }
+      
+    }
+}
+
+/**
  * @brief  prints assembler output
  * 
  */
@@ -106,9 +156,6 @@ void Assembler::printOutput(){
     this->outputFile << s.id << "\t" << s.base << "\t" << s.length << "\t" << s.name << "\n";
   }
 
-  this->outputFile << endl;
-  this->outputFile << endl;
-  this->outputFile << endl;
   this->outputFile << endl;
 
   this->outputFile << "SYMBOL TABLE\n";
@@ -167,9 +214,6 @@ void Assembler::printOutput(){
   }
 
   this->outputFile << endl;
-  this->outputFile << endl;
-  this->outputFile << endl;
-  this->outputFile << endl;
 
   for(Section sec: sectionTable){
     this->outputFile << "Machine code <" << sec.name << ">\n";
@@ -194,9 +238,6 @@ void Assembler::printOutput(){
     this->outputFile << endl;
   }
 
-  this->outputFile << endl;
-  this->outputFile << endl;
-  this->outputFile << endl;
   this->outputFile << endl;
 
   for(Symbol symb: symbolTable){
@@ -267,7 +308,7 @@ int Assembler::pass(){
       regex_search(s1, m1, symbolRegex);
       string labelName = m1.str(0);
       outputHelp << "Label name: " << labelName << endl;      // we take label name and check if symbol exists, is it duplcate...
-      s = m.suffix().str();                                         // remove label from the string
+      s = m.suffix().str();                                   // remove label from the string
 
       if(currentSectionId == -1){
         return -2;
@@ -540,18 +581,19 @@ int Assembler::pass(){
     // one register instruction
     if(regex_search(s, m, oneRegisterInsturctions)){
       outputHelp << "Found instruction with one register as operand: " << m.str(0) << endl;
+      string helper = s;
       s = m.suffix().str();
       if(currentSectionId == -1){
         return -2;
       }
 
       smatch m1;
-      regex_search(s, m1, symbolOnlyRegex);
+      regex_search(helper, m1, symbolOnlyRegex);
       string instruction = m1.str(0);
 
       outputHelp << "Insturction: " << instruction << endl;
 
-      regex_search(s, m1, registersRegex);
+      regex_search(helper, m1, registersRegex);
       outputHelp << "Register found: " << m1.str(0) << endl;
       string reg = m1.str(0);
       
@@ -640,6 +682,7 @@ int Assembler::pass(){
 
       smatch m1;
       string s1 = m.str(0);
+      string helper = s;
       s = m.suffix().str();
       regex_search(s1, m1, symbolOnlyRegex);                // remove instruction name
       string instruction = m1.str(0);
@@ -650,15 +693,14 @@ int Assembler::pass(){
 
       outputHelp << "Instruction: " << instruction << endl;
 
-      regex_search(s, m1, registersRegex);
+      regex_search(helper, m1, registersRegex);
       string r1 = m1.str(0);
       outputHelp << "Register found: " << m1.str(0) << endl;
-      s = m1.suffix().str();
+      helper = m1.suffix().str();
 
-      regex_search(s, m1, registersRegex);
+      regex_search(helper, m1, registersRegex);
       string r2 = m1.str(0);
       outputHelp << "Register found: " << m1.str(0) << endl;
-      s = m1.suffix().str();
 
       string num;
       if(r1 == "sp") num = "6";
@@ -801,8 +843,10 @@ int Assembler::pass(){
       // register direct
       if(regex_search(s1, m1, registerDirectJumpRegex)){
         outputHelp << "Jump Register direct value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
 
-        regex_search(s1, m1, registersRegex);
+        regex_search(helper, m1, registersRegex);
         string reg = m1.str(0);
         string num;
         outputHelp << "Register found: " << reg << endl; 
@@ -813,7 +857,7 @@ int Assembler::pass(){
           if(reg == "psw"){
             num = "6";
           } else {
-            if(regex_search(s1, m1, literalRegex)){
+            if(regex_search(helper, m1, literalRegex)){
               num = m1.str(0);
             } else {
               return -1;
@@ -826,14 +870,21 @@ int Assembler::pass(){
 
         locationCounter+=3;
         locationCounterGlobal+=3;
-        continue;
+        
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // PC REL with symbol
       if(regex_search(s1, m1, pcRelSymbolJumpRegex)){
         outputHelp << "Jump PC REL with symbol found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
         
-        if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
+        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           outputHelp << "Symbol found: " << symName << endl;
           int ret = searchSymbol(symName);
@@ -848,16 +899,23 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // register indirect with literal
       if(regex_search(s1, m1, registerIndirectLiteralJumpRegex)){
         outputHelp << "Jump Register indirect with literal value found!" << endl;
-
-        regex_search(s1, m1, registersRegex);
-        string reg = m1.str(0);
+        string helper = s1;
         s1 = m1.suffix().str();
+
+        regex_search(helper, m1, registersRegex);
+        string reg = m1.str(0);
+        helper = m1.suffix().str();
         string num;
 
         outputHelp << "Register found: " << reg << endl;
@@ -876,7 +934,7 @@ int Assembler::pass(){
           }
         }
 
-        regex_search(s1, m1, literalRegex);
+        regex_search(helper, m1, literalRegex);
         string lit = m1.str(0);
 
         outputHelp << "Literal found: " << lit << endl;
@@ -889,16 +947,23 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // register indirect with symbol
       if(regex_search(s1, m1, registerIndirectSymbolJumpRegex)){
         outputHelp << "Jump Register indirect with symbol value found!" << endl;
-
-        regex_search(s1, m1, registersRegex);
-        string reg = m1.str(0);
+        string helper = s1;
         s1 = m1.suffix().str();
+
+        regex_search(helper, m1, registersRegex);
+        string reg = m1.str(0);
+        helper = m1.suffix().str();
         string num;
 
         outputHelp << "Register found: " << reg << endl;
@@ -917,9 +982,9 @@ int Assembler::pass(){
           }
         }
 
-        if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
+        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
-          s1 = m1.suffix().str();
+          helper = m1.suffix().str();
           regex_search(symName, m1, symbolNoBracketsRegex);
           symName = m1.str(0);
           outputHelp << "Symbol found: " << symName << endl;
@@ -935,14 +1000,23 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // register indirect
       if(regex_search(s1, m1, registerIndirectJumpRegex)){
         outputHelp << "Jump Register indirect value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
+        if(regex_search(s1, m1, endBracketRegex)){
+          s1 = m1.suffix().str();
+        }
 
-        regex_search(s1, m1, registersRegex);
+        regex_search(helper, m1, registersRegex);
         string reg = m1.str(0);
         string num;
 
@@ -954,7 +1028,7 @@ int Assembler::pass(){
           if(reg == "psw"){
             num = "6";
           } else {
-            if(regex_search(s1, m1, literalRegex)){
+            if(regex_search(helper, m1, literalRegex)){
               num = m1.str(0);
             } else {
               return -1;
@@ -967,14 +1041,20 @@ int Assembler::pass(){
 
         locationCounter+=3;
         locationCounterGlobal+=3;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // memory value literal
       if(regex_search(s1, m1, valueMemLiteralJumpRegex)){
         outputHelp << "Jump Memory literal value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
 
-        if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
+        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
@@ -989,14 +1069,20 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // memory value symbol
       if(regex_search(s1, m1, valueMemSymbolJumpRegex)){
         outputHelp << "Jump Memory symbol value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
 
-        regex_search(s1, m1, literalRegex);
+        regex_search(helper, m1, literalRegex);
         string lit = m1.str(0);
         outputHelp << "Literal found: " << lit << endl;
 
@@ -1008,14 +1094,20 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // literal value
       if(regex_search(s1, m1, literalRegex)){
         outputHelp << "Jump literal value found!" << endl;
-
+        
         string lit = m1.str(0);
+        string helper = s1;
+        s1 = m1.suffix().str();
         outputHelp << "Literal found: " << lit << endl;
 
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
@@ -1026,7 +1118,11 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // symbol value
@@ -1034,6 +1130,8 @@ int Assembler::pass(){
         outputHelp << "Jump symbol value found!" << endl;
 
         string symName = m1.str(0);
+        string helper = s1;
+        s1 = m1.suffix().str();
         int ret = searchSymbol(symName);
         outputHelp << "Symbol found: " << symName << endl;
         addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
@@ -1046,7 +1144,11 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
     }
@@ -1101,8 +1203,10 @@ int Assembler::pass(){
       // PC REL with symbol
       if(regex_search(s1, m1, pcRelSymbolDataRegex)){
         outputHelp << "PC REL with symbol found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
 
-        if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
+        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
@@ -1117,14 +1221,20 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // memory value literal
       if(regex_search(s1, m1, valueLiteralDataRegex)){
         outputHelp << "Literal value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
 
-        regex_search(s1, m1, literalRegex);
+        regex_search(helper, m1, literalRegex);
         string lit = m1.str(0);
         outputHelp << "Literal found: " << lit << endl;
 
@@ -1136,14 +1246,23 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+
+        s1 = m1.suffix().str();
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
+
       }
 
       // memory value symbol
       if(regex_search(s1, m1, valueSymbolDataRegex)){
         outputHelp << "Symbol value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
 
-        if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
+        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
@@ -1158,7 +1277,11 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // register direct
@@ -1166,6 +1289,9 @@ int Assembler::pass(){
         outputHelp << "Register direct value found!" << endl;
         string reg2 = m1.str(0);
         s1 = m1.suffix().str();
+        if(regex_search(s1, m1, endBracketRegex)){
+          s1 = m1.suffix().str();
+        }
 
         outputHelp << "Register found: " << reg2 << endl;
 
@@ -1181,14 +1307,20 @@ int Assembler::pass(){
 
         locationCounter+=3;
         locationCounterGlobal+=3;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // register indirect
       if(regex_search(s1, m1, registerIndirectDataRegex)){
         outputHelp << "Register indirect value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
 
-        regex_search(s1, m1, registersRegex);
+        regex_search(helper, m1, registersRegex);
         string reg2 = m1.str(0);
         outputHelp << "Register found: " << reg2 << endl;
 
@@ -1204,19 +1336,25 @@ int Assembler::pass(){
 
         locationCounter+=3;
         locationCounterGlobal+=3;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // register indirect with literal
       if(regex_search(s1, m1, registerIndirectLiteralDataRegex)){
         outputHelp << "Register indirect with literal value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
 
-        regex_search(s1, m1, registersRegex);
+        regex_search(helper, m1, registersRegex);
         string reg2 = m1.str(0);
-        s1 = m1.suffix().str();
-        regex_search(s1, m1, literalRegex);
+        helper = m1.suffix().str();
+        regex_search(helper, m1, literalRegex);
         string lit = m1.str(0);
-        s1 = m1.suffix().str();
+        helper = m1.suffix().str();
 
         outputHelp << "Register found: " << reg2 << endl;
         outputHelp << "Literal found: " << lit << endl;
@@ -1236,18 +1374,24 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // register indirect with symbol
       if(regex_search(s1, m1, registerIndirectSymbolDataRegex)){
         outputHelp << "Register indirect with symbol value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
 
-        regex_search(s1, m1, registersRegex);
+        regex_search(helper, m1, registersRegex);
         string reg2 = m1.str(0);
         outputHelp << "Register found: " << reg2 << endl;
-        s1 = m1.suffix().str();
-        if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
+        helper = m1.suffix().str();
+        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
@@ -1269,17 +1413,23 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // symbol value
       if(regex_search(s1, m1, symbolRegex)){
-        if(!regex_search(s1, m1, registersRegex)){
+        string helper = s1;
+        s1 = m1.suffix().str();
+        if(!regex_search(helper, m1, registersRegex)){
 
-          if(regex_search(s1, m1, symbolOnlyRegex)){       // add to forward if needed
+          if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
             string symName = m1.str(0);
             int ret = searchSymbol(symName);
-          outputHelp << "Symbol found: " << symName << endl;
+            outputHelp << "Symbol found: " << symName << endl;
             addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
           }
 
@@ -1293,7 +1443,11 @@ int Assembler::pass(){
           locationCounterGlobal+=5;
           outputHelp << "Memory symbol value found!" << endl;
         }
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
 
       // literal value
@@ -1313,7 +1467,11 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        continue;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
       }
       
     }
