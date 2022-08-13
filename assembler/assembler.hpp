@@ -62,6 +62,7 @@ regex endSpacesRegex("[ ]*$");
 regex commaRegex(", ");
 regex endBracketRegex("\\]");
 regex hexRegex("0x[0-9a-fA-F]+");
+regex hexRemoveRegex("0x");
 regex decRegex("[-]?[0-9][0-9]*");
 
 // regex for operands for jumps
@@ -218,7 +219,7 @@ private:
   vector<Relocation> addRelocation(vector<Relocation> relocationTable, int locationCounter, int sectionId, int symbolId, bool pc){
     Relocation rel;
 
-    rel.offset = locationCounter;
+    rel.offset = locationCounter - 2;
     rel.sectionId = sectionId;
     rel.symbolId = symbolId;
     rel.addend = 0;
@@ -229,4 +230,7 @@ private:
     relocationTable.push_back(rel);
     return relocationTable;
   }
+
+  vector<string> hexToCode(string num);
+  vector<string> decToCode(string num);
 };

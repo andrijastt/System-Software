@@ -36,6 +36,29 @@ Assembler::Assembler(string outputFile, string inputFile) throw(){
 
 }
 
+vector<string> Assembler::hexToCode(string num){
+
+  vector<string> ret;
+  if(num.size() == 4){
+    ret.push_back(num.substr(0,2));
+    ret.push_back(num.substr(2,2));
+  } else {
+    if(num.size() == 3){
+      ret.push_back("0" + num.substr(0,1));
+      ret.push_back(num.substr(2,2));
+    } else {
+      if(num.size() == 2){
+        ret.push_back("00");
+        ret.push_back(num.substr(0,2));
+      } else {
+        ret.push_back("00");
+        ret.push_back("0" + num);
+      }
+    }
+  }
+  return ret;
+}
+
 /**
  * @brief we open files assigned in constructor
  * 
@@ -185,7 +208,7 @@ void Assembler::printOutput(){
             this->outputFile << "R_PC16\t";
             break;
         }
-        this->outputFile << relocations.symbolId << "\t" << relocations.addend << "\n";
+        this->outputFile << relocations.symbolId << "\t" << std::setfill('0') << std::setw(4) << std::hex << relocations.addend << std::dec <<"\n";
       }
 
     }
@@ -503,7 +526,8 @@ int Assembler::pass(){
 
       int cnt = 0;
       while(regex_search(s1, m1, symbolOrLiteralRegex)){
-        cnt++;
+        locationCounter += 2;
+        locationCounterGlobal += 2;
         outputHelp << "Symbol or Literal val: " << m1.str(0) << endl;
         string val = m1.str(0);
         s1 = m1.suffix().str();
@@ -520,11 +544,7 @@ int Assembler::pass(){
 
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-      }
-
-      locationCounter += cnt*2;
-      locationCounterGlobal += cnt*2;
-
+      }  
     }
 
     // skip directive
@@ -908,6 +928,9 @@ int Assembler::pass(){
         string helper = s1;
         s1 = m1.suffix().str();
         
+        locationCounter+=5;
+        locationCounterGlobal+=5;
+
         if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           outputHelp << "Symbol found: " << symName << endl;
@@ -920,9 +943,6 @@ int Assembler::pass(){
         // TODO
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-
-        locationCounter+=5;
-        locationCounterGlobal+=5;
 
         if(s1 != ""){
           return -1;
@@ -1006,6 +1026,9 @@ int Assembler::pass(){
           }
         }
 
+        locationCounter+=5;
+        locationCounterGlobal+=5;
+
         if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           helper = m1.suffix().str();
@@ -1022,8 +1045,6 @@ int Assembler::pass(){
         currentSectionMachineCode = addToCode("02", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("02", currentSection.name, currentSectionMachineCode);
 
-        locationCounter+=5;
-        locationCounterGlobal+=5;
         if(s1 != ""){
           return -1;
         } else {
@@ -1078,6 +1099,9 @@ int Assembler::pass(){
         string helper = s1;
         s1 = m1.suffix().str();
 
+        locationCounter+=5;
+        locationCounterGlobal+=5;
+
         if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
@@ -1091,8 +1115,6 @@ int Assembler::pass(){
         currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
 
-        locationCounter+=5;
-        locationCounterGlobal+=5;
         if(s1 != ""){
           return -1;
         } else {
@@ -1158,6 +1180,9 @@ int Assembler::pass(){
         s1 = m1.suffix().str();
         int ret = searchSymbol(symName);
         outputHelp << "Symbol found: " << symName << endl;
+
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
 
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
@@ -1166,8 +1191,6 @@ int Assembler::pass(){
         currentSectionMachineCode = addToCode("06", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("06", currentSection.name, currentSectionMachineCode);
 
-        locationCounter+=5;
-        locationCounterGlobal+=5;
         if(s1 != ""){
           return -1;
         } else {
@@ -1234,6 +1257,9 @@ int Assembler::pass(){
         string helper = s1;
         s1 = m1.suffix().str();
 
+        locationCounter+=5;
+        locationCounterGlobal+=5;
+
         if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
@@ -1247,8 +1273,6 @@ int Assembler::pass(){
         currentSectionMachineCode = addToCode("07", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("07", currentSection.name, currentSectionMachineCode);
 
-        locationCounter+=5;
-        locationCounterGlobal+=5;
         if(s1 != ""){
           return -1;
         } else {
@@ -1265,17 +1289,30 @@ int Assembler::pass(){
         regex_search(helper, m1, literalRegex);
         string lit = m1.str(0);
         outputHelp << "Literal found: " << lit << endl;
+        s1 = m1.suffix().str();
 
         currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
         // TODO
-        currentSectionMachineCode = addToCode("08", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("08", currentSection.name, currentSectionMachineCode);
+        if(regex_search(lit, m1, hexRegex)){
+          string num2 = m1.str(0);
+          regex_search(num2, m1, hexRemoveRegex);
+          num2 = m1.suffix().str();
+          vector<string> help = hexToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+
+        } else {
+          string num2 = m1.str(0);
+          currentSectionMachineCode = addToCode("08", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("08", currentSection.name, currentSectionMachineCode);
+        }
 
         locationCounter+=5;
         locationCounterGlobal+=5;
 
-        s1 = m1.suffix().str();
         if(s1 != ""){
           return -1;
         } else {
@@ -1290,6 +1327,9 @@ int Assembler::pass(){
         string helper = s1;
         s1 = m1.suffix().str();
 
+        locationCounter+=5;
+        locationCounterGlobal+=5;
+
         if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
@@ -1303,8 +1343,6 @@ int Assembler::pass(){
         currentSectionMachineCode = addToCode("09", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("09", currentSection.name, currentSectionMachineCode);
 
-        locationCounter+=5;
-        locationCounterGlobal+=5;
         if(s1 != ""){
           return -1;
         } else {
@@ -1415,6 +1453,9 @@ int Assembler::pass(){
         string helper = s1;
         s1 = m1.suffix().str();
 
+        locationCounter+=5;
+        locationCounterGlobal+=5;
+
         regex_search(helper, m1, registersRegex);
         string reg2 = m1.str(0);
         outputHelp << "Register found: " << reg2 << endl;
@@ -1438,9 +1479,7 @@ int Assembler::pass(){
         // TODO
         currentSectionMachineCode = addToCode("0B", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("0B", currentSection.name, currentSectionMachineCode);
-
-        locationCounter+=5;
-        locationCounterGlobal+=5;
+        
         if(s1 != ""){
           return -1;
         } else {
@@ -1454,6 +1493,8 @@ int Assembler::pass(){
         s1 = m1.suffix().str();
         if(!regex_search(helper, m1, registersRegex)){
 
+          locationCounter+=5;
+          locationCounterGlobal+=5;
           if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
             string symName = m1.str(0);
             int ret = searchSymbol(symName);
@@ -1467,8 +1508,6 @@ int Assembler::pass(){
           currentSectionMachineCode = addToCode("0D", currentSection.name, currentSectionMachineCode);
           currentSectionMachineCode = addToCode("0D", currentSection.name, currentSectionMachineCode);
 
-          locationCounter+=5;
-          locationCounterGlobal+=5;
           outputHelp << "Memory symbol value found!" << endl;
         }
         if(s1 != ""){
