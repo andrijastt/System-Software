@@ -61,6 +61,8 @@ regex spacesRegex("[ ]*");
 regex endSpacesRegex("[ ]*$");
 regex commaRegex(", ");
 regex endBracketRegex("\\]");
+regex hexRegex("0x[0-9a-fA-F]+");
+regex decRegex("[-]?[0-9][0-9]*");
 
 // regex for operands for jumps
 regex pcRelSymbolJumpRegex("%" + symbol);
@@ -150,6 +152,7 @@ private:
     int addend;
     int symbolId;
   };
+  vector<vector<Relocation>> relocationTable;
 
   vector<MachineCode> addToCode(string value, string sectionName, vector<MachineCode> machineCodes){
     MachineCode mc;
@@ -159,6 +162,71 @@ private:
     return machineCodes;
   };
 
-  void addSymbolOrForwardElement(int ret, string symName, int currentSectionId, int locationCounter, 
-    Section currentSection);
+  /**
+   * @brief adds Symbol to symbol table if it doesn't exist or to forward if it does
+   * 
+   * @param ret               if symbol is in symbol table or not
+   * @param symName           symbol name
+   * @param currentSectionId  id of current section
+   * @param locationCounter   current location counter
+   * @param currentSection    current section
+   */
+  vector<Relocation> addSymbolOrForwardElement(int ret, string symName, int currentSectionId, int locationCounter, 
+    Section currentSection, vector<Relocation> relocationTable, bool pc){
+    if(ret == -1){
+      Symbol symb;
+      symb.name = symName;
+      symb.bind = UND;
+      symb.defined = false;
+      symb.id = symbolId++;
+      symb.offset = -1;       // unknown
+      symb.size = 0;
+      symb.type = NOTYP;
+      symb.value = 0;
+      symb.sectionId = currentSectionId;
+
+      Forwarding fwd;
+      fwd.type = RELO;
+      fwd.addend = -2;
+      fwd.patch = locationCounter;
+      fwd.sectionID = currentSection.id;
+
+      symb.forwardingTable.push_back(fwd);
+      symbolTable.push_back(symb);
+      relocationTable = addRelocation(relocationTable, locationCounter, currentSection.id, symb.id, pc);
+    } else {                                        // there is symbol at table
+
+      Symbol symb = symbolTable.at(ret);
+      if(symb.defined){
+        //TODO
+      } else {  
+        Forwarding fwd;
+        fwd.type = RELO;
+        fwd.addend = -2;
+        fwd.patch = locationCounter;
+        fwd.sectionID = currentSection.id;
+
+        symb.forwardingTable.push_back(fwd);
+        symbolTable.at(ret) = symb;
+        relocationTable = addRelocation(relocationTable, locationCounter, currentSection.id, symb.id, pc);
+      }
+    
+    }
+    return relocationTable;
+  }
+
+  vector<Relocation> addRelocation(vector<Relocation> relocationTable, int locationCounter, int sectionId, int symbolId, bool pc){
+    Relocation rel;
+
+    rel.offset = locationCounter;
+    rel.sectionId = sectionId;
+    rel.symbolId = symbolId;
+    rel.addend = 0;
+
+    if(pc) rel.type = R_PC16;
+    else rel.type = R_16;
+
+    relocationTable.push_back(rel);
+    return relocationTable;
+  }
 };

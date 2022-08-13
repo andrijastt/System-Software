@@ -96,56 +96,6 @@ int Assembler::searchSymbol(string symbolName){
 }
 
 /**
- * @brief adds Symbol to symbol table if it doesn't exist or to forward if it does
- * 
- * @param ret               if symbol is in symbol table or not
- * @param symName           symbol name
- * @param currentSectionId  id of current section
- * @param locationCounter   current location counter
- * @param currentSection    current section
- */
-void Assembler::addSymbolOrForwardElement(int ret, string symName, int currentSectionId, int locationCounter, 
-  Section currentSection){
-    if(ret == -1){
-      Symbol symb;
-      symb.name = symName;
-      symb.bind = UND;
-      symb.defined = false;
-      symb.id = symbolId++;
-      symb.offset = -1;       // unknown
-      symb.size = 0;
-      symb.type = NOTYP;
-      symb.value = 0;
-      symb.sectionId = currentSectionId;
-
-      Forwarding fwd;
-      fwd.type = TEXT;
-      fwd.addend = -2;
-      fwd.patch = locationCounter;
-      fwd.sectionID = currentSection.id;
-
-      symb.forwardingTable.push_back(fwd);
-      symbolTable.push_back(symb);
-    } else {                                        // there is symbol at table
-
-      Symbol symb = symbolTable.at(ret);
-      if(symb.defined){
-        //TODO
-      } else {  
-        Forwarding fwd;
-        fwd.type = TEXT;
-        fwd.addend = -2;
-        fwd.patch = locationCounter;
-        fwd.sectionID = currentSection.id;
-
-        symb.forwardingTable.push_back(fwd);
-        symbolTable.at(ret) = symb;
-      }
-      
-    }
-}
-
-/**
  * @brief  prints assembler output
  * 
  */
@@ -159,9 +109,9 @@ void Assembler::printOutput(){
   this->outputFile << endl;
 
   this->outputFile << "SYMBOL TABLE\n";
-  this->outputFile << "Num\tValue\tSize\tType\tBind\tNdx\tName\tDefined\n";
+  this->outputFile << "Num\tValue\tType\tBind\tNdx\tName\tDefined\n";
   for(Symbol sym: symbolTable){
-    this->outputFile << sym.id << "\t" << std::setfill('0') << std::setw(4) << std::hex << sym.value << "\t" << std::dec << sym.size << "\t"; 
+    this->outputFile << sym.id << "\t" << std::setfill('0') << std::setw(4) << std::hex << sym.offset << std::dec << "\t"; 
 
     switch(sym.type){
 
@@ -216,6 +166,35 @@ void Assembler::printOutput(){
   this->outputFile << endl;
 
   for(Section sec: sectionTable){
+    this->outputFile << "Relocation table <" << sec.name << ">\n";
+    this->outputFile << "Offset\tType\tSymbol ID\tAddend\n";
+
+    for(vector<Relocation> rel: relocationTable){
+      if(rel.at(0).sectionId != sec.id || rel.size() == 0){
+        continue;
+      }
+
+      for(Relocation relocations: rel){
+        this->outputFile << std::setfill('0') << std::setw(4) << std::hex << relocations.offset << std::dec << "\t";
+
+        switch(relocations.type){
+          case R_16:
+            this->outputFile << "R_16\t";
+            break;
+          case R_PC16:
+            this->outputFile << "R_PC16\t";
+            break;
+        }
+        this->outputFile << relocations.symbolId << "\t" << relocations.addend << "\n";
+      }
+
+    }
+    this->outputFile << endl;
+  }
+
+  this->outputFile << endl;
+
+  for(Section sec: sectionTable){
     this->outputFile << "Machine code <" << sec.name << ">\n";
 
     for(vector<MachineCode> mcodes: machineCode){
@@ -242,7 +221,7 @@ void Assembler::printOutput(){
 
   for(Symbol symb: symbolTable){
     this->outputFile << "Forward table <" << symb.name << ">\n";
-    this->outputFile << "Forwarding type\tSection ID\tPatch\tAddend\n" ;
+    this->outputFile << "Forwarding_type\tSection ID\tPatch\tAddend\n" ;
 
     for(Forwarding fw: symb.forwardingTable){
       switch(fw.type){
@@ -287,6 +266,7 @@ int Assembler::pass(){
 
   int currentSectionId = -1;
   vector<MachineCode> currentSectionMachineCode;
+  vector<Relocation> currentRelocationTable;
 
   for(string s: goodLines){
     smatch m;
@@ -309,6 +289,10 @@ int Assembler::pass(){
       string labelName = m1.str(0);
       outputHelp << "Label name: " << labelName << endl;      // we take label name and check if symbol exists, is it duplcate...
       s = m.suffix().str();                                   // remove label from the string
+
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
+      }
 
       if(currentSectionId == -1){
         return -2;
@@ -356,6 +340,10 @@ int Assembler::pass(){
     if(regex_search(s, m, globalRegex)){
       outputHelp << "Found global directive: " << m.str(0) << endl;
 
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
+      }
+
       smatch m1;
       string s1 = m.str(0);
       regex_search(s1, m1, symbolRegex);              // remove global from symbols
@@ -399,6 +387,10 @@ int Assembler::pass(){
     if(regex_search(s, m, externRegex)){
       outputHelp << "Found extern directive: " << m.str(0) << endl;
 
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
+      }
+
       smatch m1;
       string s1 = m.str(0);
       regex_search(s1, m1, symbolRegex);              // remove extern from symbols
@@ -441,6 +433,10 @@ int Assembler::pass(){
     if(regex_search(s, m, sectionRegex)){
       outputHelp << "Found section directive: " << m.str(0) << endl;
 
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
+      }
+
       smatch m1;
       string s1 = m.str(0);
       regex_search(s1, m1, symbolRegex);              // remove section from symbols
@@ -461,7 +457,9 @@ int Assembler::pass(){
         currentSection = section;
         locationCounter = 0;
         this->machineCode.push_back(currentSectionMachineCode);
+        this->relocationTable.push_back(currentRelocationTable);
         currentSectionMachineCode.clear();
+        currentRelocationTable.clear();
       }
 
       bool found = false;
@@ -493,6 +491,9 @@ int Assembler::pass(){
       if(currentSectionId == -1){
         return -2;
       }
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
+      }
 
       smatch m1;
       string s1 = m.str(0);
@@ -510,9 +511,14 @@ int Assembler::pass(){
         if(regex_search(val, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
-          addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
+        } else {
+          if(regex_search(val, m1, literalRegex)){  //
+
+          }
         }
 
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
       }
 
@@ -529,6 +535,9 @@ int Assembler::pass(){
       if(currentSectionId == -1){
         return -2;
       }
+      if(m.prefix().str() != ""){
+        return -1;
+      }
 
       smatch m1;
       regex_search(s, m1, literalRegex);              
@@ -542,6 +551,8 @@ int Assembler::pass(){
       for(int i = 0; i < num; i++){
          currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
       }
+
+      if(s != "") return -1;
 
     }
 
@@ -557,6 +568,9 @@ int Assembler::pass(){
 
       if(currentSectionId == -1){
         return -2;
+      }
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
       }
 
       string instruction = m.str(0);
@@ -585,6 +599,9 @@ int Assembler::pass(){
       s = m.suffix().str();
       if(currentSectionId == -1){
         return -2;
+      }
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
       }
 
       smatch m1;
@@ -678,6 +695,9 @@ int Assembler::pass(){
       outputHelp << "Found instruction with two registers as operands: " << m.str(0) << endl;
       if(currentSectionId == -1){
         return -2;
+      }
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
       }
 
       smatch m1;
@@ -808,6 +828,10 @@ int Assembler::pass(){
     if(regex_search(s, m, oneOperandInstructions)){
       outputHelp << "Found instruction with one operand: " << m.str(0) << endl;
 
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
+      }
+
       smatch m1;
       string s1 = m.str(0);
       regex_search(s1, m1, symbolRegex);                // remove instruction name
@@ -888,7 +912,7 @@ int Assembler::pass(){
           string symName = m1.str(0);
           outputHelp << "Symbol found: " << symName << endl;
           int ret = searchSymbol(symName);
-          addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, true);
         }
 
         currentSectionMachineCode = addToCode("F7", currentSection.name, currentSectionMachineCode);
@@ -989,7 +1013,7 @@ int Assembler::pass(){
           symName = m1.str(0);
           outputHelp << "Symbol found: " << symName << endl;
           int ret = searchSymbol(symName);
-          addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
         }
 
         currentSectionMachineCode = addToCode("F" + num, currentSection.name, currentSectionMachineCode);
@@ -1058,7 +1082,7 @@ int Assembler::pass(){
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
-          addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
         }
 
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
@@ -1134,7 +1158,7 @@ int Assembler::pass(){
         s1 = m1.suffix().str();
         int ret = searchSymbol(symName);
         outputHelp << "Symbol found: " << symName << endl;
-        addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
+        currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
 
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
@@ -1155,6 +1179,10 @@ int Assembler::pass(){
 
     if(regex_search(s, m, oneOperandOneRegisterInstructions)){
       outputHelp << "Found instruction with one operand and one register: " << m.str(0) << endl;
+
+      if(m.prefix().str() != "" || m.suffix().str() != ""){
+        return -1;
+      }
 
       smatch m1;
       string s1 = m.str(0);
@@ -1210,7 +1238,7 @@ int Assembler::pass(){
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
-          addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, true);
         }
 
         currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
@@ -1266,7 +1294,7 @@ int Assembler::pass(){
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
-          addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
         }
 
         currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
@@ -1395,7 +1423,7 @@ int Assembler::pass(){
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
-          addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
         }
 
         if(reg2 == "sp") num += "6";
@@ -1430,7 +1458,7 @@ int Assembler::pass(){
             string symName = m1.str(0);
             int ret = searchSymbol(symName);
             outputHelp << "Symbol found: " << symName << endl;
-            addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection);
+            currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
           }
 
           currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
@@ -1485,6 +1513,7 @@ int Assembler::pass(){
   currentSection.length = locationCounter;
   sectionTable.push_back(currentSection);
   machineCode.push_back(currentSectionMachineCode);
+  relocationTable.push_back(currentRelocationTable);
 
   printOutput();
 
