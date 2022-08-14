@@ -120,6 +120,10 @@ private:
     int sectionID;
     int patch;                        // address that needs to be patched
     int addend;
+    int mcstart;
+    int mcend;
+    int offset;
+    int offsetRelo;
   };
 
   static int symbolId;
@@ -137,14 +141,33 @@ private:
   };
   vector<Symbol> symbolTable;
 
-  Symbol findSymbol();
-
   struct MachineCode{
     // string address;
     string value;
     string sectionName;
   };
   vector<vector<MachineCode>> machineCode;
+
+  vector<MachineCode> backPatching(Symbol sym, int sectionId, int locationCounter, vector<MachineCode> code){
+    for(Forwarding fw: sym.forwardingTable){
+      if(fw.sectionID == sectionId){
+        int mov = locationCounter - fw.mcend - 1;
+        string mov1 = to_string(mov);
+        vector<string> help = decToCode(mov1);
+        bool done = false;
+        for(string s: help){
+          if(!done){
+            code.at(fw.mcstart).value = s;
+            done = true;
+          } else {
+            code.at(fw.mcend).value = s;
+          }
+        }
+      }
+    }
+
+    return code;
+  }
 
   struct Relocation{
     int sectionId;
@@ -154,6 +177,8 @@ private:
     int symbolId;
   };
   vector<vector<Relocation>> relocationTable;
+
+  void backPatchingRelocation(Symbol sym);
 
   vector<MachineCode> addToCode(string value, string sectionName, vector<MachineCode> machineCodes){
     MachineCode mc;
@@ -173,14 +198,14 @@ private:
    * @param currentSection    current section
    */
   vector<Relocation> addSymbolOrForwardElement(int ret, string symName, int currentSectionId, int locationCounter, 
-    Section currentSection, vector<Relocation> relocationTable, bool pc){
+    Section currentSection, vector<Relocation> relocationTable, bool pc, int startSize, int endSize){
     if(ret == -1){
       Symbol symb;
       symb.name = symName;
       symb.bind = UND;
       symb.defined = false;
       symb.id = symbolId++;
-      symb.offset = -1;       // unknown
+      symb.offset = 0;       // unknown
       symb.size = 0;
       symb.type = NOTYP;
       symb.value = 0;
@@ -191,6 +216,10 @@ private:
       fwd.addend = -2;
       fwd.patch = locationCounter;
       fwd.sectionID = currentSection.id;
+      fwd.mcstart = startSize;
+      fwd.mcend = endSize;
+      fwd.offset = -1;
+      fwd.offsetRelo = relocationTable.size();
 
       symb.forwardingTable.push_back(fwd);
       symbolTable.push_back(symb);
@@ -206,6 +235,10 @@ private:
         fwd.addend = -2;
         fwd.patch = locationCounter;
         fwd.sectionID = currentSection.id;
+        fwd.mcstart = startSize;
+        fwd.mcend = endSize;
+        fwd.offset = -1;
+        fwd.offsetRelo = relocationTable.size();
 
         symb.forwardingTable.push_back(fwd);
         symbolTable.at(ret) = symb;
@@ -222,10 +255,15 @@ private:
     rel.offset = locationCounter - 2;
     rel.sectionId = sectionId;
     rel.symbolId = symbolId;
-    rel.addend = 0;
 
-    if(pc) rel.type = R_PC16;
-    else rel.type = R_16;
+    if(pc){
+      rel.addend = -2;
+      rel.type = R_PC16;
+    }
+    else{ 
+      rel.addend = symbolTable.at(symbolId).offset;
+      rel.type = R_16;
+    }
 
     relocationTable.push_back(rel);
     return relocationTable;

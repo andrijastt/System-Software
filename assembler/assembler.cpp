@@ -36,6 +36,12 @@ Assembler::Assembler(string outputFile, string inputFile) throw(){
 
 }
 
+/**
+ * @brief turns hex number to machine code
+ * 
+ * @param num the number that need to be changed
+ * @return vector<string> helper machine code
+ */
 vector<string> Assembler::hexToCode(string num){
 
   vector<string> ret;
@@ -56,6 +62,46 @@ vector<string> Assembler::hexToCode(string num){
       }
     }
   }
+  return ret;
+}
+
+/**
+ * @brief turns dec number to machine code
+ * 
+ * @param num the number that need to be changed
+ * @return vector<string> helper machine code
+ */
+vector<string> Assembler::decToCode(string num){
+  vector<string> ret;
+  
+  int n = stoi(num);
+  char help[8];
+  sprintf(help, "%X", n);
+  string help1 = (string)help;
+
+  if(help1.size() == 4){
+    ret.push_back(help1.substr(0,2));
+    ret.push_back(help1.substr(2,2));
+  } else {
+    if(help1.size() == 3){
+      ret.push_back("0" + help1.substr(0,1));
+      ret.push_back(help1.substr(2,2));
+    } else {
+      if(help1.size() == 2){
+        ret.push_back("00");
+        ret.push_back(help1.substr(0,2));
+      } else {
+        if(help1.size() == 1){
+          ret.push_back("00");
+          ret.push_back("0" + help1);
+        } else {  // here it means it is negative number
+          ret.push_back(help1.substr(4,2));
+          ret.push_back(help1.substr(6,2));
+        }        
+      }
+    }
+  }
+
   return ret;
 }
 
@@ -198,7 +244,7 @@ void Assembler::printOutput(){
       }
 
       for(Relocation relocations: rel){
-        this->outputFile << std::setfill('0') << std::setw(4) << std::hex << relocations.offset << std::dec << "\t";
+        this->outputFile << std::uppercase << std::setfill('0') << std::setw(4) << std::hex << relocations.offset << std::dec << "\t";
 
         switch(relocations.type){
           case R_16:
@@ -208,7 +254,17 @@ void Assembler::printOutput(){
             this->outputFile << "R_PC16\t";
             break;
         }
-        this->outputFile << relocations.symbolId << "\t" << std::setfill('0') << std::setw(4) << std::hex << relocations.addend << std::dec <<"\n";
+        this->outputFile << relocations.symbolId << "\t";
+
+        if(relocations.addend >= 0){
+          this->outputFile << std::setfill('0') << ::setw(4) << std::hex << relocations.addend << std::dec <<"\n";
+        } else {
+          string help = to_string(relocations.addend);
+          vector<string> help1 = decToCode(help);
+          for(string s: help1)
+            this->outputFile << s;
+          this->outputFile << endl;
+        }
       }
 
     }
@@ -244,7 +300,7 @@ void Assembler::printOutput(){
 
   for(Symbol symb: symbolTable){
     this->outputFile << "Forward table <" << symb.name << ">\n";
-    this->outputFile << "Forwarding_type\tSection ID\tPatch\tAddend\n" ;
+    this->outputFile << "Forwarding_type\tSection ID\tOffset\tOffset Relocation\n" ;
 
     for(Forwarding fw: symb.forwardingTable){
       switch(fw.type){
@@ -261,12 +317,33 @@ void Assembler::printOutput(){
           break;
       }
 
-      this->outputFile << fw.sectionID << "\t" << fw.patch << "\t" << fw.addend << endl;
+      this->outputFile << fw.sectionID << "\t" << fw.offset << "\t" << fw.offsetRelo << endl;
     }
 
     this->outputFile << endl;
   }
 
+}
+
+void Assembler::backPatchingRelocation(Symbol sym){
+  int j = 0;
+  for(vector<Relocation> relTable: relocationTable){
+    int i = 0;
+    for(Relocation rel: relTable){
+      if(rel.symbolId == sym.id){
+        if(sym.bind == GLOBAL){
+          rel.addend = 0;
+        } else {
+          rel.addend = sym.offset;
+          rel.symbolId = sym.sectionId;
+        }
+        relTable.at(i) = rel;
+      }
+      i++;
+    }
+    relocationTable.at(j) = relTable;
+    j++;
+  }
 }
 
 /**
@@ -334,8 +411,22 @@ int Assembler::pass(){
           sym.offset = locationCounter;
           sym.sectionId = currentSectionId;
           found = true;
+          if(sym.bind == UND) sym.bind = LOCAL;
 
           symbolTable.at(i) = sym;
+
+          int j = 0;
+          for(Relocation rel: currentRelocationTable){
+            if(rel.symbolId == sym.id && rel.type == R_PC16){
+              rel.type = R_16;
+              currentRelocationTable.at(j) = rel;
+              break;
+            }
+            j++;
+          }
+
+          currentSectionMachineCode = backPatching(sym, currentSection.id, locationCounter, currentSectionMachineCode);
+          backPatchingRelocation(sym);
 
           break;
         }
@@ -533,17 +624,56 @@ int Assembler::pass(){
         s1 = m1.suffix().str();
 
         if(regex_search(val, m1, symbolOnlyRegex)){       // add to forward if needed
+          currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
-          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
+          int endSize = currentSectionMachineCode.size() - 1;
+          int startSize = currentSectionMachineCode.size() - 2;
+          int size = currentRelocationTable.size();
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
+          currentRelocationTable, false, startSize, endSize);
+
+          if(size == currentRelocationTable.size() && ret != -1){
+            int mov = locationCounter - symbolTable.at(ret).offset - 1;
+            string mov1 = to_string(mov);
+            vector<string> help = decToCode(mov1);
+            bool done = false;
+            for(string s: help){
+              if(!done){
+                currentSectionMachineCode.at(startSize).value = s;
+                done = true;
+              } else {
+                currentSectionMachineCode.at(endSize).value = s;
+              }
+            }
+          }
+
         } else {
           if(regex_search(val, m1, literalRegex)){  //
+
+            if(regex_search(val, m1, hexRegex)){
+              string num2 = m1.str(0);
+              regex_search(num2, m1, hexRemoveRegex);
+              num2 = m1.suffix().str();
+              vector<string> help = hexToCode(num2);
+
+              for(string s: help){
+                currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+              }
+
+            } else {
+              string num2 = val;
+              vector<string> help = decToCode(num2);
+
+              for(string s: help){
+                currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+              }
+            }
 
           }
         }
 
-        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
       }  
     }
 
@@ -651,7 +781,7 @@ int Assembler::pass(){
             }
           }
 
-           currentSectionMachineCode = addToCode("11", currentSection.name, currentSectionMachineCode);
+           currentSectionMachineCode = addToCode("12", currentSection.name, currentSectionMachineCode);
 
         } else {  // instruction is pop
            currentSectionMachineCode = addToCode("A0", currentSection.name, currentSectionMachineCode);
@@ -931,18 +1061,36 @@ int Assembler::pass(){
         locationCounter+=5;
         locationCounterGlobal+=5;
 
+        currentSectionMachineCode = addToCode("F7", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("05", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+
         if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           outputHelp << "Symbol found: " << symName << endl;
           int ret = searchSymbol(symName);
-          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, true);
-        }
+          int endSize = currentSectionMachineCode.size() - 1;
+          int startSize = currentSectionMachineCode.size() - 2;
+          int size = currentRelocationTable.size();
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
+          currentRelocationTable, true, startSize, endSize);
 
-        currentSectionMachineCode = addToCode("F7", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+          if(size == currentRelocationTable.size() && ret != -1){
+            int mov = locationCounter - symbolTable.at(ret).offset - 1;
+            string mov1 = to_string(mov);
+            vector<string> help = decToCode(mov1);
+            bool done = false;
+            for(string s: help){
+              if(!done){
+                currentSectionMachineCode.at(startSize).value = s;
+                done = true;
+              } else {
+                currentSectionMachineCode.at(endSize).value = s;
+              }
+            }
+          }
+        }
 
         if(s1 != ""){
           return -1;
@@ -985,9 +1133,24 @@ int Assembler::pass(){
 
         currentSectionMachineCode = addToCode("F" + num, currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("01", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("01", currentSection.name, currentSectionMachineCode);
+        if(regex_search(lit, m1, hexRegex)){
+          string num2 = m1.str(0);
+          regex_search(num2, m1, hexRemoveRegex);
+          num2 = m1.suffix().str();
+          vector<string> help = hexToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+
+        } else {
+          string num2 = lit;
+          vector<string> help = decToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+        }
 
         locationCounter+=5;
         locationCounterGlobal+=5;
@@ -1029,6 +1192,11 @@ int Assembler::pass(){
         locationCounter+=5;
         locationCounterGlobal+=5;
 
+        currentSectionMachineCode = addToCode("F" + num, currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+
         if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           helper = m1.suffix().str();
@@ -1036,14 +1204,27 @@ int Assembler::pass(){
           symName = m1.str(0);
           outputHelp << "Symbol found: " << symName << endl;
           int ret = searchSymbol(symName);
-          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
-        }
+          int endSize = currentSectionMachineCode.size() - 1;
+          int startSize = currentSectionMachineCode.size() - 2;
+          int size = currentRelocationTable.size();
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
+          currentRelocationTable, false, startSize, endSize);
 
-        currentSectionMachineCode = addToCode("F" + num, currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("02", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("02", currentSection.name, currentSectionMachineCode);
+          if(size == currentRelocationTable.size() && ret != -1){
+            int mov = locationCounter - symbolTable.at(ret).offset - 1;
+            string mov1 = to_string(mov);
+            vector<string> help = decToCode(mov1);
+            bool done = false;
+            for(string s: help){
+              if(!done){
+                currentSectionMachineCode.at(startSize).value = s;
+                done = true;
+              } else {
+                currentSectionMachineCode.at(endSize).value = s;
+              }
+            }
+          }
+        }
 
         if(s1 != ""){
           return -1;
@@ -1102,18 +1283,29 @@ int Assembler::pass(){
         locationCounter+=5;
         locationCounterGlobal+=5;
 
-        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
-          string symName = m1.str(0);
-          int ret = searchSymbol(symName);
-          outputHelp << "Symbol found: " << symName << endl;
-          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
-        }
+        regex_search(helper, m1, literalRegex);
+        string lit = m1.str(0);
 
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
+        if(regex_search(lit, m1, hexRegex)){
+          string num2 = m1.str(0);
+          regex_search(num2, m1, hexRemoveRegex);
+          num2 = m1.suffix().str();
+          vector<string> help = hexToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+
+        } else {
+          string num2 = lit;
+          vector<string> help = decToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+        }
 
         if(s1 != ""){
           return -1;
@@ -1135,8 +1327,8 @@ int Assembler::pass(){
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
         // TODO
-        currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
 
         locationCounter+=5;
         locationCounterGlobal+=5;
@@ -1158,9 +1350,24 @@ int Assembler::pass(){
 
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("05", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("05", currentSection.name, currentSectionMachineCode);
+        if(regex_search(lit, m1, hexRegex)){
+          string num2 = m1.str(0);
+          regex_search(num2, m1, hexRemoveRegex);
+          num2 = m1.suffix().str();
+          vector<string> help = hexToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+
+        } else {
+          string num2 = lit;
+          vector<string> help = decToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+        }
 
         locationCounter+=5;
         locationCounterGlobal+=5;
@@ -1183,13 +1390,31 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
-        currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
-
         currentSectionMachineCode = addToCode("F0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("06", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("06", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+
+        int endSize = currentSectionMachineCode.size() - 1;
+        int startSize = currentSectionMachineCode.size() - 2;
+        int size = currentRelocationTable.size();
+        currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
+        currentRelocationTable, false, startSize, endSize);
+
+        if(size == currentRelocationTable.size() && ret != -1){
+          int mov = locationCounter - symbolTable.at(ret).offset - 1;
+          string mov1 = to_string(mov);
+          vector<string> help = decToCode(mov1);
+          bool done = false;
+          for(string s: help){
+            if(!done){
+              currentSectionMachineCode.at(startSize).value = s;
+              done = true;
+            } else {
+              currentSectionMachineCode.at(endSize).value = s;
+            }
+          }
+        }
 
         if(s1 != ""){
           return -1;
@@ -1260,18 +1485,36 @@ int Assembler::pass(){
         locationCounter+=5;
         locationCounterGlobal+=5;
 
+        currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("05", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+
         if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
-          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, true);
-        }
+          int endSize = currentSectionMachineCode.size() - 1;
+          int startSize = currentSectionMachineCode.size() - 2;
+          int size = currentRelocationTable.size();
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
+          currentRelocationTable, true, startSize, endSize);
 
-        currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("07", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("07", currentSection.name, currentSectionMachineCode);
+          if(size == currentRelocationTable.size() && ret != -1){
+            int mov = locationCounter - symbolTable.at(ret).offset - 1;
+            string mov1 = to_string(mov);
+            vector<string> help = decToCode(mov1);
+            bool done = false;
+            for(string s: help){
+              if(!done){
+                currentSectionMachineCode.at(startSize).value = s;
+                done = true;
+              } else {
+                currentSectionMachineCode.at(endSize).value = s;
+              }
+            }
+          }
+        }
 
         if(s1 != ""){
           return -1;
@@ -1293,7 +1536,6 @@ int Assembler::pass(){
 
         currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-        // TODO
         if(regex_search(lit, m1, hexRegex)){
           string num2 = m1.str(0);
           regex_search(num2, m1, hexRemoveRegex);
@@ -1305,9 +1547,12 @@ int Assembler::pass(){
           }
 
         } else {
-          string num2 = m1.str(0);
-          currentSectionMachineCode = addToCode("08", currentSection.name, currentSectionMachineCode);
-          currentSectionMachineCode = addToCode("08", currentSection.name, currentSectionMachineCode);
+          string num2 = lit;
+          vector<string> help = decToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
         }
 
         locationCounter+=5;
@@ -1329,19 +1574,179 @@ int Assembler::pass(){
 
         locationCounter+=5;
         locationCounterGlobal+=5;
+        currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
 
         if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
           string symName = m1.str(0);
           int ret = searchSymbol(symName);
           outputHelp << "Symbol found: " << symName << endl;
-          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
+          int endSize = currentSectionMachineCode.size() - 1;
+          int startSize = currentSectionMachineCode.size() - 2;
+          int size = currentRelocationTable.size();
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
+          currentRelocationTable, false, startSize, endSize);
+
+          if(size == currentRelocationTable.size() && ret != -1){
+            int mov = locationCounter - symbolTable.at(ret).offset - 1;
+            string mov1 = to_string(mov);
+            vector<string> help = decToCode(mov1);
+            bool done = false;
+            for(string s: help){
+              if(!done){
+                currentSectionMachineCode.at(startSize).value = s;
+                done = true;
+              } else {
+                currentSectionMachineCode.at(endSize).value = s;
+              }
+            }
+          }
         }
 
-        currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
+      }
+
+      // register indirect
+      if(regex_search(s1, m1, registerIndirectDataRegex)){
+        outputHelp << "Register indirect value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
+        regex_search(s1, m1, endBracketRegex);
+        s1 = m1.suffix().str();
+
+        regex_search(helper, m1, registersRegex);
+        string reg2 = m1.str(0);
+        outputHelp << "Register found: " << reg2 << endl;
+
+        if(reg2 == "sp") num += "6";
+        else if(reg2 == "psw") num += "8";
+          else {
+            if(regex_search(reg2, m1, literalRegex))
+              num += m1.str(0);
+          }
+
+        currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("02", currentSection.name, currentSectionMachineCode);
+
+        locationCounter+=3;
+        locationCounterGlobal+=3;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
+      }
+
+      // register indirect with literal
+      if(regex_search(s1, m1, registerIndirectLiteralDataRegex)){
+        outputHelp << "Register indirect with literal value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
+
+        regex_search(helper, m1, registersRegex);
+        string reg2 = m1.str(0);
+        helper = m1.suffix().str();
+        regex_search(helper, m1, literalRegex);
+        string lit = m1.str(0);
+        helper = m1.suffix().str();
+
+        outputHelp << "Register found: " << reg2 << endl;
+        outputHelp << "Literal found: " << lit << endl;
+
+        if(reg2 == "sp") num += "6";
+        else if(reg2 == "psw") num += "8";
+          else {
+            if(regex_search(reg2, m1, literalRegex))
+              num += m1.str(0);
+          }
+
+        currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
+        if(regex_search(lit, m1, hexRegex)){
+          string num2 = m1.str(0);
+          regex_search(num2, m1, hexRemoveRegex);
+          num2 = m1.suffix().str();
+          vector<string> help = hexToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+
+        } else {
+          string num2 = lit;
+          vector<string> help = decToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+        }
+
+        locationCounter+=5;
+        locationCounterGlobal+=5;
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
+      }
+
+      // register indirect with symbol
+      if(regex_search(s1, m1, registerIndirectSymbolDataRegex)){
+        outputHelp << "Register indirect with symbol value found!" << endl;
+        string helper = s1;
+        s1 = m1.suffix().str();
+
+        locationCounter+=5;
+        locationCounterGlobal+=5;
+
+        regex_search(helper, m1, registersRegex);
+        string reg2 = m1.str(0);
+        outputHelp << "Register found: " << reg2 << endl;
+        helper = m1.suffix().str();
+
+        if(reg2 == "sp") num += "6";
+        else if(reg2 == "psw") num += "8";
+          else {
+            if(regex_search(reg2, m1, literalRegex))
+              num += m1.str(0);
+          }
+
+        currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("09", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("09", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+
+        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
+          string symName = m1.str(0);
+          int ret = searchSymbol(symName);
+          outputHelp << "Symbol found: " << symName << endl;
+          int endSize = currentSectionMachineCode.size() - 1;
+          int startSize = currentSectionMachineCode.size() - 2;
+          int size = currentRelocationTable.size();
+          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
+          currentRelocationTable, false, startSize, endSize);
+
+          if(size == currentRelocationTable.size() && ret != -1){
+            int mov = locationCounter - symbolTable.at(ret).offset - 1;
+            string mov1 = to_string(mov);
+            vector<string> help = decToCode(mov1);
+            bool done = false;
+            for(string s: help){
+              if(!done){
+                currentSectionMachineCode.at(startSize).value = s;
+                done = true;
+              } else {
+                currentSectionMachineCode.at(endSize).value = s;
+              }
+            }
+          }
+        }
 
         if(s1 != ""){
           return -1;
@@ -1380,113 +1785,6 @@ int Assembler::pass(){
         }
       }
 
-      // register indirect
-      if(regex_search(s1, m1, registerIndirectDataRegex)){
-        outputHelp << "Register indirect value found!" << endl;
-        string helper = s1;
-        s1 = m1.suffix().str();
-
-        regex_search(helper, m1, registersRegex);
-        string reg2 = m1.str(0);
-        outputHelp << "Register found: " << reg2 << endl;
-
-        if(reg2 == "sp") num += "6";
-        else if(reg2 == "psw") num += "8";
-          else {
-            if(regex_search(reg2, m1, literalRegex))
-              num += m1.str(0);
-          }
-
-        currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("01", currentSection.name, currentSectionMachineCode);
-
-        locationCounter+=3;
-        locationCounterGlobal+=3;
-        if(s1 != ""){
-          return -1;
-        } else {
-          continue;
-        }
-      }
-
-      // register indirect with literal
-      if(regex_search(s1, m1, registerIndirectLiteralDataRegex)){
-        outputHelp << "Register indirect with literal value found!" << endl;
-        string helper = s1;
-        s1 = m1.suffix().str();
-
-        regex_search(helper, m1, registersRegex);
-        string reg2 = m1.str(0);
-        helper = m1.suffix().str();
-        regex_search(helper, m1, literalRegex);
-        string lit = m1.str(0);
-        helper = m1.suffix().str();
-
-        outputHelp << "Register found: " << reg2 << endl;
-        outputHelp << "Literal found: " << lit << endl;
-
-        if(reg2 == "sp") num += "6";
-        else if(reg2 == "psw") num += "8";
-          else {
-            if(regex_search(reg2, m1, literalRegex))
-              num += m1.str(0);
-          }
-
-        currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("0A", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("0A", currentSection.name, currentSectionMachineCode);
-
-        locationCounter+=5;
-        locationCounterGlobal+=5;
-        if(s1 != ""){
-          return -1;
-        } else {
-          continue;
-        }
-      }
-
-      // register indirect with symbol
-      if(regex_search(s1, m1, registerIndirectSymbolDataRegex)){
-        outputHelp << "Register indirect with symbol value found!" << endl;
-        string helper = s1;
-        s1 = m1.suffix().str();
-
-        locationCounter+=5;
-        locationCounterGlobal+=5;
-
-        regex_search(helper, m1, registersRegex);
-        string reg2 = m1.str(0);
-        outputHelp << "Register found: " << reg2 << endl;
-        helper = m1.suffix().str();
-        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
-          string symName = m1.str(0);
-          int ret = searchSymbol(symName);
-          outputHelp << "Symbol found: " << symName << endl;
-          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
-        }
-
-        if(reg2 == "sp") num += "6";
-        else if(reg2 == "psw") num += "8";
-          else {
-            if(regex_search(reg2, m1, literalRegex))
-              num += m1.str(0);
-          }
-
-        currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("0B", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("0B", currentSection.name, currentSectionMachineCode);
-        
-        if(s1 != ""){
-          return -1;
-        } else {
-          continue;
-        }
-      }
-
       // symbol value
       if(regex_search(s1, m1, symbolRegex)){
         string helper = s1;
@@ -1495,18 +1793,37 @@ int Assembler::pass(){
 
           locationCounter+=5;
           locationCounterGlobal+=5;
+
+          currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+
           if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
             string symName = m1.str(0);
             int ret = searchSymbol(symName);
             outputHelp << "Symbol found: " << symName << endl;
-            currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, currentRelocationTable, false);
-          }
+            int endSize = currentSectionMachineCode.size() - 1;
+            int startSize = currentSectionMachineCode.size() - 2;
+            int size = currentRelocationTable.size();
+            currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
+            currentRelocationTable, false, startSize, endSize);
 
-          currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
-          currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
-          // TODO
-          currentSectionMachineCode = addToCode("0D", currentSection.name, currentSectionMachineCode);
-          currentSectionMachineCode = addToCode("0D", currentSection.name, currentSectionMachineCode);
+            if(size == currentRelocationTable.size() && ret != -1){
+              int mov = locationCounter - symbolTable.at(ret).offset - 1;
+              string mov1 = to_string(mov);
+              vector<string> help = decToCode(mov1);
+              bool done = false;
+              for(string s: help){
+                if(!done){
+                  currentSectionMachineCode.at(startSize).value = s;
+                  done = true;
+                } else {
+                  currentSectionMachineCode.at(endSize).value = s;
+                }
+              }
+            }
+          }
 
           outputHelp << "Memory symbol value found!" << endl;
         }
@@ -1528,9 +1845,24 @@ int Assembler::pass(){
 
         currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
         currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
-        // TODO
-        currentSectionMachineCode = addToCode("0C", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("0C", currentSection.name, currentSectionMachineCode);
+        if(regex_search(lit, m1, hexRegex)){
+          string num2 = m1.str(0);
+          regex_search(num2, m1, hexRemoveRegex);
+          num2 = m1.suffix().str();
+          vector<string> help = hexToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+
+        } else {
+          string num2 = lit;
+          vector<string> help = decToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+        }
 
         locationCounter+=5;
         locationCounterGlobal+=5;
