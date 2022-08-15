@@ -41,6 +41,7 @@ regex globalRegex("^\\.global " + listSymbols + "$");
 regex externRegex("^\\.extern " + listSymbols + "$");
 regex sectionRegex("^\\.section " + symbol + "$");
 regex wordRegex("^\\.word " + listSymbolsAndLiterals + "$");
+regex wordOnlyRegex("^\\.word ");
 // regex skipRegex("^\\.skip " + literal + "$");  // ovo gore nece nzm zasto ali neka ostane tako
 regex skipRegex("^\\.skip");
 regex endRegex("^\\.end$");
@@ -64,6 +65,7 @@ regex endBracketRegex("\\]");
 regex hexRegex("0x[0-9a-fA-F]+");
 regex hexRemoveRegex("0x");
 regex decRegex("[-]?[0-9][0-9]*");
+regex helperSymbolRegex("\\+ " + symbol);
 
 // regex for operands for jumps
 regex pcRelSymbolJumpRegex("%" + symbol);
@@ -80,7 +82,7 @@ regex valueSymbolDataRegex("\\$(" + symbol + ")");
 regex pcRelSymbolDataRegex("\\%" + symbol);
 regex registerIndirectDataRegex("\\[" + registers + "\\]");
 regex registerIndirectLiteralDataRegex("\\[" + registers + " \\+ (" + literal + ")\\]");
-regex registerIndirectSymbolDataRegex("\\[" + registers + " \\+ " + symbol + "\\]");
+regex registerIndirectSymbolDataRegex("\\[" + registers + " \\+ (" + symbol + ")\\]");
 
 class Assembler{
 
