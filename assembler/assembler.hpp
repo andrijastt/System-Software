@@ -80,19 +80,19 @@ regex valueSymbolDataRegex("\\$(" + symbol + ")");
 regex pcRelSymbolDataRegex("\\%" + symbol);
 regex registerIndirectDataRegex("\\[" + registers + "\\]");
 regex registerIndirectLiteralDataRegex("\\[" + registers + " \\+ (" + literal + ")\\]");
-regex registerIndirectSymbolDataRegex("\\[" + registers + " \\+ (" + symbol + ")\\]");
+regex registerIndirectSymbolDataRegex("\\[" + registers + " \\+ " + symbol + "\\]");
 
 class Assembler{
 
 public:
 
   Assembler(string outputFile, string inputFile) throw();
-  bool openFiles();
-  void setGoodLines();
   int pass();
 
 private:
 
+  bool openFiles();
+  void setGoodLines();
   void printOutput();
   int searchSymbol(string symbolName);
 
@@ -111,7 +111,7 @@ private:
   vector<Section> sectionTable;
 
   enum RelocationType{R_16, R_PC16};
-  enum Binds{GLOBAL, LOCAL, UND};
+  enum Binds{GLOBAL, LOCAL, NOBIND};
   enum SymbolType{NOTYP, SCTN};
   enum ForwardingType{TEXT, RELO, DATA};
 
@@ -202,7 +202,7 @@ private:
     if(ret == -1){
       Symbol symb;
       symb.name = symName;
-      symb.bind = UND;
+      symb.bind = NOBIND;
       symb.defined = false;
       symb.id = symbolId++;
       symb.offset = 0;       // unknown

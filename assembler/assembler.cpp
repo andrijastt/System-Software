@@ -29,7 +29,7 @@ Assembler::Assembler(string outputFile, string inputFile) throw(){
   symbol.value = 0;
   symbol.size = 0;
   symbol.type = NOTYP;
-  symbol.bind = LOCAL;
+  symbol.bind = NOBIND;
   symbol.defined = false;
   symbol.type = NOTYP;
   symbolTable.push_back(symbol);
@@ -169,41 +169,57 @@ int Assembler::searchSymbol(string symbolName){
  * 
  */
 void Assembler::printOutput(){
+
+  size_t lastindex = outputFileString.find_last_of(".");
+  string outputLinker = outputFileString.substr(0, lastindex) + "Linker.o";
+  ofstream outputLinkerStream;
+  outputLinkerStream.open(outputLinker, ios::out|ios::trunc);
+
   this->outputFile << "SECTION TABLE\n";
-  this->outputFile << "ID" << "\t" << "BASE" << "\t" << "LENGTH" << "\t" << "NAME" << "\n";
+  this->outputFile << "ID" << "\t" << "LENGTH" << "\t" << "NAME" << "\n";
+  outputLinkerStream << "SECTIONS\n";
   for(Section s: sectionTable){
-    this->outputFile << s.id << "\t" << s.base << "\t" << s.length << "\t" << s.name << "\n";
+    this->outputFile << s.id << "\t" << s.length << "\t" << s.name << "\n";
+    outputLinkerStream << s.id << "\t" << s.length << "\t" << s.name << "\n";
   }
 
   this->outputFile << endl;
+  outputLinkerStream << endl;
 
   this->outputFile << "SYMBOL TABLE\n";
   this->outputFile << "Num\tValue\tType\tBind\tNdx\tName\tDefined\n";
+  outputLinkerStream << "SYMBOLS\n";
   for(Symbol sym: symbolTable){
     this->outputFile << sym.id << "\t" << std::setfill('0') << std::setw(4) << std::hex << sym.offset << std::dec << "\t"; 
+    outputLinkerStream << sym.id << "\t" << std::setfill('0') << std::setw(4) << std::hex << sym.offset << std::dec << "\t"; 
 
     switch(sym.type){
 
       case NOTYP:
         this->outputFile << "NOTYP\t";
+        outputLinkerStream << "NOTYP\t";
         break;
       
       case SCTN:
         this->outputFile << "SCTN\t";
+        outputLinkerStream << "SCTN\t";
         break;
     }
 
     switch(sym.bind){
       case GLOBAL:
         this->outputFile << "GLOB\t";
+        outputLinkerStream << "GLOB\t";
         break;
 
       case LOCAL:
         this->outputFile << "LOC\t";
+        outputLinkerStream << "LOC\t";
         break;
 
-      case UND:
-        this->outputFile << "UND\t";
+      case NOBIND:
+        this->outputFile << "NOBIND\t";
+        outputLinkerStream << "NOBIND\t";
         break;
     }
 
@@ -211,70 +227,91 @@ void Assembler::printOutput(){
 
       case 0:
         this->outputFile << "UND\t";
+        outputLinkerStream << "UND\t";
         break;
 
       default:
         this->outputFile << sym.sectionId << "\t";
+        outputLinkerStream << sym.sectionId << "\t";
         break;
     }
 
     this->outputFile << sym.name << "\t";
+    outputLinkerStream << sym.name << "\t";
 
     switch(sym.defined){
 
       case true:
         this->outputFile << "DEF\n";
+        outputLinkerStream << "DEF\n";
         break;
 
       case false:
         this->outputFile << "UND\n";
+        outputLinkerStream << "UND\n";
         break;
     }
   }
 
   this->outputFile << endl;
+  outputLinkerStream << endl;
 
+  outputLinkerStream << "RELOCATIONS\nUND\n";
   for(Section sec: sectionTable){
     this->outputFile << "Relocation table <" << sec.name << ">\n";
     this->outputFile << "Offset\tType\tSymbol ID\tAddend\n";
 
     for(vector<Relocation> rel: relocationTable){
-      if(rel.at(0).sectionId != sec.id || rel.size() == 0){
+      if(rel.size() == 0) continue;
+      if(rel.at(0).sectionId != sec.id){
         continue;
       }
 
+      outputLinkerStream << sectionTable.at(rel.at(0).sectionId).name << endl;
       for(Relocation relocations: rel){
         this->outputFile << std::uppercase << std::setfill('0') << std::setw(4) << std::hex << relocations.offset << std::dec << "\t";
+        outputLinkerStream << std::uppercase << std::setfill('0') << std::setw(4) << std::hex << relocations.offset << std::dec << "\t";
 
         switch(relocations.type){
           case R_16:
             this->outputFile << "R_16\t";
+            outputLinkerStream << "R_16\t";
             break;
           case R_PC16:
             this->outputFile << "R_PC16\t";
+            outputLinkerStream << "R_PC16\t";
             break;
         }
         this->outputFile << relocations.symbolId << "\t";
+        outputLinkerStream << relocations.symbolId << "\t";
 
         if(relocations.addend >= 0){
           this->outputFile << std::setfill('0') << ::setw(4) << std::hex << relocations.addend << std::dec <<"\n";
+          outputLinkerStream << std::setfill('0') << ::setw(4) << std::hex << relocations.addend << std::dec <<"\n";
         } else {
           string help = to_string(relocations.addend);
           vector<string> help1 = decToCode(help);
-          for(string s: help1)
+          for(string s: help1){
             this->outputFile << s;
+            outputLinkerStream << s;
+          }
           this->outputFile << endl;
+          outputLinkerStream << endl;
         }
       }
 
     }
     this->outputFile << endl;
+    outputLinkerStream << endl;
   }
 
   this->outputFile << endl;
+  outputLinkerStream << endl;
 
+  outputLinkerStream << "MACHINE CODE\n";
   for(Section sec: sectionTable){
     this->outputFile << "Machine code <" << sec.name << ">\n";
+    outputLinkerStream << sec.name << "\n";
 
     for(vector<MachineCode> mcodes: machineCode){
       if(mcodes.at(0).sectionName != sec.name || sec.name == "UND" || mcodes.size() == 0){
@@ -289,14 +326,17 @@ void Assembler::printOutput(){
         }
 
         this->outputFile << mcode.value << " ";
+        outputLinkerStream << mcode.value << " ";
         i++;
       }
 
     }
     this->outputFile << endl;
+    outputLinkerStream << endl;
   }
 
   this->outputFile << endl;
+  outputLinkerStream << endl << "END";
 
   for(Symbol symb: symbolTable){
     this->outputFile << "Forward table <" << symb.name << ">\n";
@@ -352,6 +392,11 @@ void Assembler::backPatchingRelocation(Symbol sym){
  * @return int 0 - it is good, -1 - syntax error, -2 - some labels or code are not in section
  */
 int Assembler::pass(){
+
+  if(!openFiles()){
+    return -3;
+  }
+  setGoodLines();
 
   size_t lastindex = outputFileString.find_last_of(".");
   string outputFileHelpString = outputFileString.substr(0, lastindex) + "Helper.o";
@@ -411,7 +456,7 @@ int Assembler::pass(){
           sym.offset = locationCounter;
           sym.sectionId = currentSectionId;
           found = true;
-          if(sym.bind == UND) sym.bind = LOCAL;
+          if(sym.bind == NOBIND) sym.bind = LOCAL;
 
           symbolTable.at(i) = sym;
 
@@ -590,7 +635,7 @@ int Assembler::pass(){
         sym.size = 0;
         sym.value = 0;
         sym.type = SCTN;
-        sym.bind = LOCAL;
+        sym.bind = NOBIND;
         currentSectionId = sym.sectionId = sym.id = symbolId++;
         sym.offset = locationCounter;
         symbolTable.push_back(sym);
@@ -797,7 +842,7 @@ int Assembler::pass(){
               currentSectionMachineCode = addToCode(num +"6", currentSection.name, currentSectionMachineCode);              
             }
           }
-          currentSectionMachineCode = addToCode("21", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("42", currentSection.name, currentSectionMachineCode);
         }
 
         locationCounter+=3;
@@ -1614,32 +1659,101 @@ int Assembler::pass(){
 
       // register indirect
       if(regex_search(s1, m1, registerIndirectDataRegex)){
-        outputHelp << "Register indirect value found!" << endl;
-        string helper = s1;
-        s1 = m1.suffix().str();
-        regex_search(s1, m1, endBracketRegex);
-        s1 = m1.suffix().str();
+        if(m1.suffix().str() == "]"){
+          outputHelp << "Register indirect value found!" << endl;
+          string helper = s1;
+          s1 = m1.suffix().str();
+          regex_search(s1, m1, endBracketRegex);
+          s1 = m1.suffix().str();
 
-        regex_search(helper, m1, registersRegex);
-        string reg2 = m1.str(0);
-        outputHelp << "Register found: " << reg2 << endl;
+          regex_search(helper, m1, registersRegex);
+          string reg2 = m1.str(0);
+          outputHelp << "Register found: " << reg2 << endl;
 
-        if(reg2 == "sp") num += "6";
-        else if(reg2 == "psw") num += "8";
-          else {
-            if(regex_search(reg2, m1, literalRegex))
-              num += m1.str(0);
+          if(reg2 == "sp") num += "6";
+          else if(reg2 == "psw") num += "8";
+            else {
+              if(regex_search(reg2, m1, literalRegex))
+                num += m1.str(0);
+            }
+
+          currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("02", currentSection.name, currentSectionMachineCode);
+
+          locationCounter+=3;
+          locationCounterGlobal+=3;
+          if(s1 != ""){
+            return -1;
+          } else {
+            continue;
+          }
+        }
+
+      }
+
+      // register indirect with symbol
+      if(regex_search(s1, m1, registerIndirectSymbolDataRegex)){
+        if(m1.suffix().str() == "]"){
+          outputHelp << "Register indirect with symbol value found!" << endl;
+          string helper = s1;
+          s1 = m1.suffix().str();
+
+          regex_search(s1, m1, endBracketRegex);
+          s1 = m1.suffix().str();
+
+          locationCounter+=5;
+          locationCounterGlobal+=5;
+
+          regex_search(helper, m1, registersRegex);
+          string reg2 = m1.str(0);
+          outputHelp << "Register found: " << reg2 << endl;
+          helper = m1.suffix().str();
+
+          if(reg2 == "sp") num += "6";
+          else if(reg2 == "psw") num += "8";
+            else {
+              if(regex_search(reg2, m1, literalRegex))
+                num += m1.str(0);
+            }
+
+          currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+          currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
+
+          if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
+            string symName = m1.str(0);
+            int ret = searchSymbol(symName);
+            regex_search(symName, m1, endBracketRegex);
+            symName = m1.prefix().str();
+            outputHelp << "Symbol found: " << symName << endl;
+            int endSize = currentSectionMachineCode.size() - 1;
+            int startSize = currentSectionMachineCode.size() - 2;
+            int size = currentRelocationTable.size();
+            currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
+            currentRelocationTable, false, startSize, endSize);
+
+            if(size == currentRelocationTable.size() && ret != -1){
+              int mov = locationCounter - symbolTable.at(ret).offset - 1;
+              string mov1 = to_string(mov);
+              vector<string> help = decToCode(mov1);
+              bool done = false;
+              for(string s: help){
+                if(!done){
+                  currentSectionMachineCode.at(startSize).value = s;
+                  done = true;
+                } else {
+                  currentSectionMachineCode.at(endSize).value = s;
+                }
+              }
+            }
           }
 
-        currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("02", currentSection.name, currentSectionMachineCode);
-
-        locationCounter+=3;
-        locationCounterGlobal+=3;
-        if(s1 != ""){
-          return -1;
-        } else {
-          continue;
+          if(s1 != ""){
+            return -1;
+          } else {
+            continue;
+          }
         }
       }
 
@@ -1647,6 +1761,9 @@ int Assembler::pass(){
       if(regex_search(s1, m1, registerIndirectLiteralDataRegex)){
         outputHelp << "Register indirect with literal value found!" << endl;
         string helper = s1;
+        s1 = m1.suffix().str();
+
+        regex_search(s1, m1, endBracketRegex);
         s1 = m1.suffix().str();
 
         regex_search(helper, m1, registersRegex);
@@ -1693,66 +1810,7 @@ int Assembler::pass(){
           return -1;
         } else {
           continue;
-        }
-      }
-
-      // register indirect with symbol
-      if(regex_search(s1, m1, registerIndirectSymbolDataRegex)){
-        outputHelp << "Register indirect with symbol value found!" << endl;
-        string helper = s1;
-        s1 = m1.suffix().str();
-
-        locationCounter+=5;
-        locationCounterGlobal+=5;
-
-        regex_search(helper, m1, registersRegex);
-        string reg2 = m1.str(0);
-        outputHelp << "Register found: " << reg2 << endl;
-        helper = m1.suffix().str();
-
-        if(reg2 == "sp") num += "6";
-        else if(reg2 == "psw") num += "8";
-          else {
-            if(regex_search(reg2, m1, literalRegex))
-              num += m1.str(0);
-          }
-
-        currentSectionMachineCode = addToCode(num, currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("03", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("00", currentSection.name, currentSectionMachineCode);
-
-        if(regex_search(helper, m1, symbolOnlyRegex)){       // add to forward if needed
-          string symName = m1.str(0);
-          int ret = searchSymbol(symName);
-          outputHelp << "Symbol found: " << symName << endl;
-          int endSize = currentSectionMachineCode.size() - 1;
-          int startSize = currentSectionMachineCode.size() - 2;
-          int size = currentRelocationTable.size();
-          currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-          currentRelocationTable, false, startSize, endSize);
-
-          if(size == currentRelocationTable.size() && ret != -1){
-            int mov = locationCounter - symbolTable.at(ret).offset - 1;
-            string mov1 = to_string(mov);
-            vector<string> help = decToCode(mov1);
-            bool done = false;
-            for(string s: help){
-              if(!done){
-                currentSectionMachineCode.at(startSize).value = s;
-                done = true;
-              } else {
-                currentSectionMachineCode.at(endSize).value = s;
-              }
-            }
-          }
-        }
-
-        if(s1 != ""){
-          return -1;
-        } else {
-          continue;
-        }
+        }        
       }
 
       // register direct
@@ -1915,17 +1973,15 @@ int main(int argc, char const *argv[]){
 
     Assembler assembler(outputFile, inputFile);
 
-    if(!assembler.openFiles()){
-      throw NonexistantInputFileException();
-    }
-
-    assembler.setGoodLines();
     int ret = assembler.pass();
     if(ret == -1){
       throw BadSyntaxException();
     }
     if(ret == -2){
       throw NoSectionException();
+    }
+    if(ret == -2){
+      throw NonexistantInputFileException();
     }
 
     
