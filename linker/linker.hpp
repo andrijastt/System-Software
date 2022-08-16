@@ -6,6 +6,8 @@
 #include <fstream>
 #include <iomanip>
 
+using namespace std;
+
 class Linker{
 
 public:
@@ -24,7 +26,7 @@ private:
 
   vector<string> inputFileStrings;
   string outputFileString;
-  vector<ifstream> inputFiles;
+  ifstream inputFile;
   ofstream outputFile;
 
 };

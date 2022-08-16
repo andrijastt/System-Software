@@ -1,8 +1,6 @@
 #include "linker.hpp"
 #include "exceptions.hpp"
 
-using namespace std;
-
 /**
  * @brief checks input data
  * 
@@ -20,6 +18,7 @@ bool checkInputData(string option1, string option2, string outputFile, vector<st
   if(option1 != "-hex" || option2 != "-o" || outputFile.substr(outputFile.find_last_of(".")+1) != "hex")
     return false;
 
+  int i = 0;
   for(string s: inputFiles){
     if(s.substr(s.find_last_of(".")+1) != "o")
       return false;
@@ -36,32 +35,14 @@ bool checkInputData(string option1, string option2, string outputFile, vector<st
  */
 Linker::Linker(vector<string> inputFileStrings, string outputFileString){
 
+  int i = 0;
+  for(string s: inputFileStrings){
+    inputFileStrings[i] = "linker." + s;
+    i++;
+  }
+
   this->inputFileStrings = inputFileStrings;
   this->outputFileString = outputFileString;
-}
-
-/**
- * @brief opens files and check if input files exist
- * 
- * @return true everyhing is okay, creates new output File and all input Files exist
- * @return false some inputFiles don't exist
- */
-bool Linker::openFiles(){
-
-  this->outputFile.open(outputFileString, ios::trunc | ios::out);
-
-  for(string s: this->inputFileStrings){
-    ifstream inputStream;
-    inputStream.open(s, ios::in);
-
-    if(inputStream.is_open()){
-      this->inputFiles.push_back(inputStream);
-    } else {
-      return false;
-    }
-  
-  }
-  return true;
 }
 
 /**
@@ -72,9 +53,20 @@ bool Linker::openFiles(){
  */
 int Linker::link(){
 
-  if(!openFiles()){
-    return -2;
+  for(string s: this->inputFileStrings){
+    inputFile.open(s, ios::in);
+
+    if(!inputFile.is_open()) return -2;
+
+    string line;
+    while(getline(inputFile, line)){
+
+    }
+
+    inputFile.close();
   }
+
+  return 0;
 
 }
 
@@ -99,8 +91,9 @@ int main(int argc, char const *argv[]){
     }
 
     Linker linker(inputFiles, outputFile);
-
     int ret = linker.link();
+
+    if(ret == - 2) throw InputException();
 
   }
   catch(const exception& e){

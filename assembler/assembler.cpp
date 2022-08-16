@@ -171,7 +171,7 @@ int Assembler::searchSymbol(string symbolName){
 void Assembler::printOutput(){
 
   size_t lastindex = outputFileString.find_last_of(".");
-  string outputLinker = outputFileString.substr(0, lastindex) + "Linker.o";
+  string outputLinker = "linker." + outputFileString.substr(0, lastindex) + ".o";
   ofstream outputLinkerStream;
   outputLinkerStream.open(outputLinker, ios::out|ios::trunc);
 
@@ -668,7 +668,11 @@ int Assembler::pass(){
         string val = m1.str(0);
         s1 = m1.suffix().str();
 
-        if(regex_search(val, m1, literalRegex)){  //
+        bool symbolFound = false;
+        if(regex_search(val, m1, symbolOnlyRegex))
+          symbolFound = true;
+
+        if(regex_search(val, m1, literalRegex) && !symbolFound){  //
 
           if(regex_search(val, m1, hexRegex)){
             string num2 = m1.str(0);
@@ -743,6 +747,10 @@ int Assembler::pass(){
         outputHelp << "Symbol or Literal val: " << m1.str(0) << endl;
         string val = m1.str(0);
         s = m1.suffix().str();
+
+        bool symbolFound = false;
+        if(regex_search(val, m1, symbolOnlyRegex))
+          symbolFound = true;
 
         if(regex_search(val, m1, literalRegex)){  //
 
