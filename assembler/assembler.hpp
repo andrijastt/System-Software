@@ -65,7 +65,7 @@ regex endBracketRegex("\\]");
 regex hexRegex("0x[0-9a-fA-F]+");
 regex hexRemoveRegex("0x");
 regex decRegex("[-]?[0-9][0-9]*");
-regex helperSymbolRegex("\\+ " + symbol);
+regex helperSymbolRegex(symbol);
 
 // regex for operands for jumps
 regex pcRelSymbolJumpRegex("%" + symbol);

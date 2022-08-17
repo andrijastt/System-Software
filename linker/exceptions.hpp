@@ -15,3 +15,11 @@ public:
     return "Input file doesn't exist";
   };
 };
+
+class MulitpleDefinitionOfSymbolException: public std::exception{
+
+public:
+  const char* what() const throw(){
+    return "Multiple definition of same symbol found!";
+  };
+};

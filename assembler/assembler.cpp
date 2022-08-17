@@ -28,10 +28,9 @@ Assembler::Assembler(string outputFile, string inputFile) throw(){
   symbol.sectionId = 0;
   symbol.value = 0;
   symbol.size = 0;
-  symbol.type = NOTYP;
+  symbol.type = SCTN;
   symbol.bind = NOBIND;
   symbol.defined = false;
-  symbol.type = NOTYP;
   symbolTable.push_back(symbol);
 
 }
@@ -1779,7 +1778,7 @@ int Assembler::pass(){
       if(regex_search(s1, m1, registerIndirectSymbolDataRegex)){
         string help1 = m1.suffix().str();
         regex_search(help1, m1, helperSymbolRegex);
-        if(m1.suffix().str() == ""){
+        if(m1.suffix().str() != ""){
           outputHelp << "Register indirect with symbol value found!" << endl;
           string helper = s1;
           s1 = m1.suffix().str();
@@ -1929,45 +1928,6 @@ int Assembler::pass(){
         }
       }
 
-      // literal value
-      if(regex_search(s1, m1, literalRegex)){
-        outputHelp << "Memory literal value found!" << endl;
-
-        string lit = m1.str(0);
-        s1 = m1.suffix().str();
-
-        outputHelp << "Literal found: " << lit << endl;
-
-        currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
-        currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
-        if(regex_search(lit, m1, hexRegex)){
-          string num2 = m1.str(0);
-          regex_search(num2, m1, hexRemoveRegex);
-          num2 = m1.suffix().str();
-          vector<string> help = hexToCode(num2);
-
-          for(string s: help){
-            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
-          }
-
-        } else {
-          string num2 = lit;
-          vector<string> help = decToCode(num2);
-
-          for(string s: help){
-            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
-          }
-        }
-
-        locationCounter+=5;
-        locationCounterGlobal+=5;
-        if(s1 != ""){
-          return -1;
-        } else {
-          continue;
-        }
-      }
-
       // symbol value
       if(regex_search(s1, m1, symbolRegex)){
         string helper = s1;
@@ -2010,6 +1970,45 @@ int Assembler::pass(){
 
           outputHelp << "Memory symbol value found!" << endl;
         }
+        if(s1 != ""){
+          return -1;
+        } else {
+          continue;
+        }
+      }
+
+      // literal value
+      if(regex_search(s1, m1, literalRegex)){
+        outputHelp << "Memory literal value found!" << endl;
+
+        string lit = m1.str(0);
+        s1 = m1.suffix().str();
+
+        outputHelp << "Literal found: " << lit << endl;
+
+        currentSectionMachineCode = addToCode(num + "0", currentSection.name, currentSectionMachineCode);
+        currentSectionMachineCode = addToCode("04", currentSection.name, currentSectionMachineCode);
+        if(regex_search(lit, m1, hexRegex)){
+          string num2 = m1.str(0);
+          regex_search(num2, m1, hexRemoveRegex);
+          num2 = m1.suffix().str();
+          vector<string> help = hexToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+
+        } else {
+          string num2 = lit;
+          vector<string> help = decToCode(num2);
+
+          for(string s: help){
+            currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
+          }
+        }
+
+        locationCounter+=5;
+        locationCounterGlobal+=5;
         if(s1 != ""){
           return -1;
         } else {

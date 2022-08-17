@@ -19,14 +19,35 @@ private:
 
   bool openFiles();
 
-  enum RelocationType{R_16, R_PC16};
-  enum Binds{GLOBAL, LOCAL, NOBIND};
   enum SymbolType{NOTYP, SCTN};
-  enum ForwardingType{TEXT, RELO, DATA};
+  enum SymbolBind{GLOBAL, LOCAL, NOBIND};
+  enum RelocationType{R_16, R_PC16};
 
   vector<string> inputFileStrings;
   string outputFileString;
   ifstream inputFile;
   ofstream outputFile;
+
+  struct Section{
+    int id;
+    int size;
+    string name;
+  };
+
+  vector<Section> Sections;
+  int searchSection(Section sec);
+
+  struct Symbol{
+    int id;
+    int offset;
+    SymbolType type;
+    SymbolBind bind;
+    int sectionId;
+    string symbolName;
+    bool defined;
+  };
+
+  vector<Symbol> Symbols;
+  int searchSymbol(Symbol symb);
 
 };
