@@ -45,9 +45,25 @@ private:
     int sectionId;
     string symbolName;
     bool defined;
+    string sectionName;
   };
 
   vector<Symbol> Symbols;
   int searchSymbol(Symbol symb);
+
+  struct Relocation{
+    int offset;
+    RelocationType type;
+    int symbolId;
+    int addend;
+  };
+
+  struct Relocations{
+    string name;
+    string fileName;
+    vector<Relocation> relocations;
+  };
+
+  vector<Relocations> allRelocations;
 
 };

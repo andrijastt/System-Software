@@ -93,6 +93,14 @@ int Linker::searchSymbol(Symbol symb){
  */
 int Linker::link(){
 
+  ofstream linkerHelper;
+  string helper = "linkerHelper.hex";
+  linkerHelper.open(helper, ios::out|ios::trunc);
+
+  Symbol oldSection;
+  vector<Symbol> currentSymbols;
+  int currentRelocations;
+
   for(string s: this->inputFileStrings){
     inputFile.open(s, ios::in);
 
@@ -103,7 +111,7 @@ int Linker::link(){
 
     while(getline(inputFile, line)){
 
-      if(line == "") continue;
+      if(line == "" || line == "UND") continue;
 
       if(line == "SECTIONS"){
         current = 0;
@@ -181,7 +189,7 @@ int Linker::link(){
               break;
 
             case 1:
-              symb.offset = stoi(token);
+              sscanf(token.c_str(), "%X", &symb.offset);
               break;
 
             case 2:
@@ -215,13 +223,20 @@ int Linker::link(){
         if(i == -1){
           int oldId = symb.id;
           symb.id = Symbols.size();
+          if(symb.type == SCTN){ 
+            oldSection = symb;
+            oldSection.id = symb.id;
+            symb.sectionId = symb.id;
+          }
           Symbols.push_back(symb);
 
-          if(symb.type == SCTN && symb.symbolName != "UND"){
+          if(symb.type == SCTN && symb.symbolName != "UND"){    
+            int i = 0;        
             for(Symbol s: Symbols){
-              if(s.sectionId == oldId){
-                s.sectionId = symb.id;
+              if(s.sectionId == oldId && s.type != SCTN){
+                Symbols[i].sectionId= symb.id;
               }
+              i++;
             }
           }
 
@@ -233,8 +248,59 @@ int Linker::link(){
             Symbols[i].defined = true;
             Symbols[i].offset = symb.offset;
             Symbols[i].sectionId = symb.sectionId;
+            if(Symbols[i].sectionId != oldSection.id){
+              for(Symbol ss: Symbols){
+                if(ss.symbolName == oldSection.symbolName){
+                  Symbols[i].sectionId = ss.id;
+                }
+              }
+            }
+              
           }
         }
+        currentSymbols.push_back(symb);
+
+      }
+
+      if(current == 2){
+
+        size_t pos = 0;
+        string delimiter = "\t";
+        vector<string> params;
+
+        for(int j = 0; j < 4; j++){
+          pos = line.find(delimiter);
+          string token = line.substr(0, pos);
+          line.erase(0, pos + delimiter.length());
+          if(token != "") params.push_back(token);
+        }
+
+        if(params.size() == 4){
+          if(params[0] == params[1]){
+            Relocations relos;
+            relos.name = params[0];
+            relos.fileName = s;
+            currentRelocations = allRelocations.size();
+            allRelocations.push_back(relos);
+          } else {
+            Relocation relo;
+
+            sscanf(params[0].c_str(), "%X", &relo.offset);
+            if(params[1] == "R_16") relo.type = R_16;
+            else if(params[1] == "R_PC16") relo.type = R_PC16;
+            relo.symbolId = stoi(params[2]);
+            sscanf(params[3].c_str(), "%X", &relo.offset);
+
+            for(Symbol s: Symbols){
+              if(s.symbolName == currentSymbols[relo.symbolId].symbolName){
+                relo.symbolId = s.id;
+                break;
+              }
+            }
+
+            allRelocations[currentRelocations].relocations.push_back(relo);
+          }
+        } 
 
       }
 
@@ -244,12 +310,48 @@ int Linker::link(){
   }
 
   for(Section s: Sections){
-    cout << s.id << "\t" << s.size << "\t" << s.name << "\n";
+    linkerHelper << s.id << "\t" << s.size << "\t" << s.name << "\n";
   }
-  cout << endl << endl;
+  linkerHelper << endl << endl;
   for(Symbol s: Symbols){
-    cout << s.id << "\t" << s.offset << "\t" << s.sectionId << "\t" << s.symbolName << endl;
+    linkerHelper << s.id << "\t" << s.offset << "\t" << s.sectionId << "\t" << s.symbolName << "\t";
+
+    switch(s.bind){
+      case GLOBAL:
+        linkerHelper << "GLOBAL" << endl;
+        break;
+
+      case LOCAL:
+        linkerHelper << "LOCAL" << endl;
+        break;
+
+      case NOBIND:
+      linkerHelper << "NOBIND" << endl;
+      break;
+    }
   }
+  linkerHelper << endl << endl;
+
+  for(Relocations rels: allRelocations){
+
+    linkerHelper << "Relocations from section " << rels.name << "\t FILE NAME: " << rels.fileName << endl;
+
+    for(Relocation rel: rels.relocations){
+      linkerHelper << rel.offset << "\t";
+      switch(rel.type){
+        case R_16:
+          linkerHelper << "R_16\t";
+          break;
+
+        case R_PC16:
+          linkerHelper << "R_PC16\t";
+      }
+      linkerHelper << rel.symbolId << "\t" << rel.addend << endl;
+    }
+    linkerHelper << endl;
+  }
+
+  linkerHelper.close();
 
   return 0;
 
