@@ -100,6 +100,8 @@ int Linker::link(){
   Symbol oldSection;
   vector<Symbol> currentSymbols;
   int currentRelocations;
+  int currentMC;
+  bool turn = true;
 
   for(string s: this->inputFileStrings){
     inputFile.open(s, ios::in);
@@ -119,6 +121,7 @@ int Linker::link(){
       }
 
       if(line == "SYMBOLS"){
+        currentSymbols.clear();
         current = 1;
         continue;
       }
@@ -289,7 +292,14 @@ int Linker::link(){
             if(params[1] == "R_16") relo.type = R_16;
             else if(params[1] == "R_PC16") relo.type = R_PC16;
             relo.symbolId = stoi(params[2]);
-            sscanf(params[3].c_str(), "%X", &relo.offset);
+
+            int num;
+            sscanf(params[3].substr(0,1).c_str(), "%X", &num);
+            if(num >= 8){
+              params[3] = "FFFF" + params[3];
+            }
+
+            sscanf(params[3].c_str(), "%X", &relo.addend);
 
             for(Symbol s: Symbols){
               if(s.symbolName == currentSymbols[relo.symbolId].symbolName){
@@ -301,6 +311,35 @@ int Linker::link(){
             allRelocations[currentRelocations].relocations.push_back(relo);
           }
         } 
+
+      }
+
+      if(current == 3){
+        size_t pos = 0;
+        string delimiter = " ";
+        vector<string> params;
+
+        if((pos = line.find(delimiter)) == std::string::npos){
+          params.push_back(line);
+        }
+
+        while((pos = line.find(delimiter)) != std::string::npos){
+          string token = line.substr(0, pos);
+          line.erase(0, pos + delimiter.length());
+          params.push_back(token);
+        }
+
+        if(params.size() == 1 && turn){
+          MachineCode mc;
+          mc.sectionName = params[0];
+          mc.fileName = s;
+          currentMC = allMachineCode.size();
+          allMachineCode.push_back(mc);
+          turn = false;
+        } else {
+          allMachineCode[currentMC].code = params;
+          turn = true;
+        }
 
       }
 
@@ -337,7 +376,7 @@ int Linker::link(){
     linkerHelper << "Relocations from section " << rels.name << "\t FILE NAME: " << rels.fileName << endl;
 
     for(Relocation rel: rels.relocations){
-      linkerHelper << rel.offset << "\t";
+      linkerHelper << hex << rel.offset << dec << "\t";
       switch(rel.type){
         case R_16:
           linkerHelper << "R_16\t";
@@ -347,6 +386,20 @@ int Linker::link(){
           linkerHelper << "R_PC16\t";
       }
       linkerHelper << rel.symbolId << "\t" << rel.addend << endl;
+    }
+    linkerHelper << endl;
+  }
+
+  for(MachineCode mc:allMachineCode){
+    linkerHelper << "Machine code from section " << mc.sectionName << "\t FILE NAME: " << mc.fileName << endl;
+
+    int i = 0;
+    for(string s: mc.code){
+      if(i % 8 == 0){
+        linkerHelper << endl << hex << setfill('0') << setw(4) << i << dec << ": ";
+      }
+      linkerHelper << s << " ";
+      i++;
     }
     linkerHelper << endl;
   }

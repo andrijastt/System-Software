@@ -66,4 +66,12 @@ private:
 
   vector<Relocations> allRelocations;
 
+  struct MachineCode{
+    string sectionName;
+    string fileName;
+    vector<string> code;
+  };
+
+  vector<MachineCode> allMachineCode;
+
 };
