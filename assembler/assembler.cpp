@@ -80,7 +80,7 @@ vector<string> Assembler::decToCode(string num){
 
   if(help1.size() == 4){
     ret.push_back(help1.substr(0,2));
-    ret.push_back(help1.substr(2,2));
+    ret.push_back(help1.substr(1,2));
   } else {
     if(help1.size() == 3){
       ret.push_back("0" + help1.substr(0,1));
@@ -279,6 +279,10 @@ void Assembler::printOutput(){
           case R_PC16:
             this->outputFile << "R_PC16\t";
             outputLinkerStream << "R_PC16\t";
+            break;
+          case R_WORD16:
+            this->outputFile << "R_WORD16\t";
+            outputLinkerStream << "R_WORD16\t";
             break;
         }
         this->outputFile << relocations.symbolId << "\t";
@@ -678,18 +682,14 @@ int Assembler::pass(){
             regex_search(num2, m1, hexRemoveRegex);
             num2 = m1.suffix().str();
             vector<string> help = hexToCode(num2);
-
-            for(string s: help){
-              currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
-            }
+            currentSectionMachineCode = addToCode(help[1], currentSection.name, currentSectionMachineCode);
+            currentSectionMachineCode = addToCode(help[0], currentSection.name, currentSectionMachineCode);
 
           } else {
             string num2 = val;
             vector<string> help = decToCode(num2);
-
-            for(string s: help){
-              currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
-            }
+            currentSectionMachineCode = addToCode(help[1], currentSection.name, currentSectionMachineCode);
+            currentSectionMachineCode = addToCode(help[0], currentSection.name, currentSectionMachineCode);
           }
 
         } else {
@@ -702,7 +702,7 @@ int Assembler::pass(){
             int startSize = currentSectionMachineCode.size() - 2;
             int size = currentRelocationTable.size();
             currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-            currentRelocationTable, false, startSize, endSize);
+            currentRelocationTable, 2, startSize, endSize);
 
             if(size == currentRelocationTable.size() && ret != -1){
               int mov = locationCounter - symbolTable.at(ret).offset - 1;
@@ -758,18 +758,14 @@ int Assembler::pass(){
             regex_search(num2, m1, hexRemoveRegex);
             num2 = m1.suffix().str();
             vector<string> help = hexToCode(num2);
-
-            for(string s: help){
-              currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
-            }
+            currentSectionMachineCode = addToCode(help[1], currentSection.name, currentSectionMachineCode);
+            currentSectionMachineCode = addToCode(help[0], currentSection.name, currentSectionMachineCode);
 
           } else {
             string num2 = val;
             vector<string> help = decToCode(num2);
-
-            for(string s: help){
-              currentSectionMachineCode = addToCode(s, currentSection.name, currentSectionMachineCode);
-            }
+            currentSectionMachineCode = addToCode(help[1], currentSection.name, currentSectionMachineCode);
+            currentSectionMachineCode = addToCode(help[0], currentSection.name, currentSectionMachineCode);
           }
 
         } else {
@@ -782,7 +778,7 @@ int Assembler::pass(){
             int startSize = currentSectionMachineCode.size() - 2;
             int size = currentRelocationTable.size();
             currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-            currentRelocationTable, false, startSize, endSize);
+            currentRelocationTable, 2, startSize, endSize);
 
             if(size == currentRelocationTable.size() && ret != -1){
               int mov = locationCounter - symbolTable.at(ret).offset - 1;
@@ -1202,7 +1198,7 @@ int Assembler::pass(){
           int startSize = currentSectionMachineCode.size() - 2;
           int size = currentRelocationTable.size();
           currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-          currentRelocationTable, true, startSize, endSize);
+          currentRelocationTable, 0, startSize, endSize);
 
           if(size == currentRelocationTable.size() && ret != -1){
             int mov = locationCounter - symbolTable.at(ret).offset - 1;
@@ -1336,7 +1332,7 @@ int Assembler::pass(){
           int startSize = currentSectionMachineCode.size() - 2;
           int size = currentRelocationTable.size();
           currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-          currentRelocationTable, false, startSize, endSize);
+          currentRelocationTable, 1, startSize, endSize);
 
           if(size == currentRelocationTable.size() && ret != -1){
             int mov = locationCounter - symbolTable.at(ret).offset - 1;
@@ -1527,7 +1523,7 @@ int Assembler::pass(){
         int startSize = currentSectionMachineCode.size() - 2;
         int size = currentRelocationTable.size();
         currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-        currentRelocationTable, false, startSize, endSize);
+        currentRelocationTable, 1, startSize, endSize);
 
         if(size == currentRelocationTable.size() && ret != -1){
           int mov = locationCounter - symbolTable.at(ret).offset - 1;
@@ -1626,7 +1622,7 @@ int Assembler::pass(){
           int startSize = currentSectionMachineCode.size() - 2;
           int size = currentRelocationTable.size();
           currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-          currentRelocationTable, true, startSize, endSize);
+          currentRelocationTable, 0, startSize, endSize);
 
           if(size == currentRelocationTable.size() && ret != -1){
             int mov = locationCounter - symbolTable.at(ret).offset - 1;
@@ -1715,7 +1711,7 @@ int Assembler::pass(){
           int startSize = currentSectionMachineCode.size() - 2;
           int size = currentRelocationTable.size();
           currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-          currentRelocationTable, false, startSize, endSize);
+          currentRelocationTable, 1, startSize, endSize);
 
           if(size == currentRelocationTable.size() && ret != -1){
             int mov = locationCounter - symbolTable.at(ret).offset - 1;
@@ -1816,7 +1812,7 @@ int Assembler::pass(){
             int startSize = currentSectionMachineCode.size() - 2;
             int size = currentRelocationTable.size();
             currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-            currentRelocationTable, false, startSize, endSize);
+            currentRelocationTable, 1, startSize, endSize);
 
             if(size == currentRelocationTable.size() && ret != -1){
               int mov = locationCounter - symbolTable.at(ret).offset - 1;
@@ -1950,7 +1946,7 @@ int Assembler::pass(){
             int startSize = currentSectionMachineCode.size() - 2;
             int size = currentRelocationTable.size();
             currentRelocationTable = addSymbolOrForwardElement(ret, symName, currentSectionId, locationCounter, currentSection, 
-            currentRelocationTable, false, startSize, endSize);
+            currentRelocationTable, 1, startSize, endSize);
 
             if(size == currentRelocationTable.size() && ret != -1){
               int mov = locationCounter - symbolTable.at(ret).offset - 1;

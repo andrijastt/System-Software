@@ -112,7 +112,7 @@ private:
   };
   vector<Section> sectionTable;
 
-  enum RelocationType{R_16, R_PC16};
+  enum RelocationType{R_16, R_PC16, R_WORD16};
   enum Binds{GLOBAL, LOCAL, NOBIND};
   enum SymbolType{NOTYP, SCTN};
   enum ForwardingType{TEXT, RELO, DATA};
@@ -157,12 +157,20 @@ private:
         string mov1 = to_string(mov);
         vector<string> help = decToCode(mov1);
         bool done = false;
-        for(string s: help){
-          if(!done){
-            code.at(fw.mcstart).value = s;
-            done = true;
-          } else {
-            code.at(fw.mcend).value = s;
+
+        if(relocationTable[sectionId][fw.offsetRelo].type == R_WORD16){
+          code.at(fw.mcstart).value = help[1];
+          code.at(fw.mcend).value = help[0];
+        } else {
+          if(relocationTable[sectionId][fw.offsetRelo].type == R_16){
+            for(string s: help){
+              if(!done){
+                code.at(fw.mcstart).value = s;
+                done = true;
+              } else {
+                code.at(fw.mcend).value = s;
+              }
+            }
           }
         }
       }
@@ -200,7 +208,7 @@ private:
    * @param currentSection    current section
    */
   vector<Relocation> addSymbolOrForwardElement(int ret, string symName, int currentSectionId, int locationCounter, 
-    Section currentSection, vector<Relocation> relocationTable, bool pc, int startSize, int endSize){
+    Section currentSection, vector<Relocation> relocationTable, int pc, int startSize, int endSize){
     if(ret == -1){
       Symbol symb;
       symb.name = symName;
@@ -251,20 +259,24 @@ private:
     return relocationTable;
   }
 
-  vector<Relocation> addRelocation(vector<Relocation> relocationTable, int locationCounter, int sectionId, int symbolId, bool pc){
+  vector<Relocation> addRelocation(vector<Relocation> relocationTable, int locationCounter, int sectionId, int symbolId, int pc){
     Relocation rel;
 
     rel.offset = locationCounter - 2;
     rel.sectionId = sectionId;
     rel.symbolId = symbolId;
 
-    if(pc){
+    if(pc == 0){
       rel.addend = -2;
       rel.type = R_PC16;
     }
     else{ 
       rel.addend = symbolTable.at(symbolId).offset;
-      rel.type = R_16;
+      if(pc == 1){
+        rel.type = R_16;
+      } else {
+        rel.type = R_WORD16;
+      }
     }
 
     relocationTable.push_back(rel);

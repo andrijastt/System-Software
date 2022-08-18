@@ -18,10 +18,16 @@ public:
 private:
 
   bool openFiles();
+  void printHelpFile();
+  bool checkForUNDSymbols();
+  void setGoodCode();
+  void setSymbolOffset();
+  void doRelocations();
+  vector<string> decToCode(string num);
 
   enum SymbolType{NOTYP, SCTN};
   enum SymbolBind{GLOBAL, LOCAL, NOBIND};
-  enum RelocationType{R_16, R_PC16};
+  enum RelocationType{R_16, R_PC16, R_WORD16};
 
   vector<string> inputFileStrings;
   string outputFileString;
@@ -45,7 +51,7 @@ private:
     int sectionId;
     string symbolName;
     bool defined;
-    string sectionName;
+    string fileName;
   };
 
   vector<Symbol> Symbols;
@@ -70,8 +76,9 @@ private:
     string sectionName;
     string fileName;
     vector<string> code;
+    // int start;
   };
 
   vector<MachineCode> allMachineCode;
-
+  vector<MachineCode> goodMachineCode;
 };

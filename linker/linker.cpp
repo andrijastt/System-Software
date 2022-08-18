@@ -46,6 +46,46 @@ Linker::Linker(vector<string> inputFileStrings, string outputFileString){
 }
 
 /**
+ * @brief turns dec number to machine code
+ * 
+ * @param num the number that need to be changed
+ * @return vector<string> helper machine code
+ */
+vector<string> Linker::decToCode(string num){
+  vector<string> ret;
+  
+  int n = stoi(num);
+  char help[8];
+  sprintf(help, "%X", n);
+  string help1 = (string)help;
+
+  if(help1.size() == 4){
+    ret.push_back(help1.substr(0,2));
+    ret.push_back(help1.substr(2,2));
+  } else {
+    if(help1.size() == 3){
+      ret.push_back("0" + help1.substr(0,1));
+      ret.push_back(help1.substr(1,2));
+    } else {
+      if(help1.size() == 2){
+        ret.push_back("00");
+        ret.push_back(help1.substr(0,2));
+      } else {
+        if(help1.size() == 1){
+          ret.push_back("00");
+          ret.push_back("0" + help1);
+        } else {  // here it means it is negative number
+          ret.push_back(help1.substr(4,2));
+          ret.push_back(help1.substr(6,2));
+        }        
+      }
+    }
+  }
+
+  return ret;
+}
+
+/**
  * @brief searches if there section already exists
  * 
  * @param sec section that we search for
@@ -86,16 +126,248 @@ int Linker::searchSymbol(Symbol symb){
 }
 
 /**
+ * @brief check if there are undefined symbols
+ * 
+ * @return true there is an undefined symbol
+ * @return false all symbols are defined
+ */
+bool Linker::checkForUNDSymbols(){
+
+  for(Symbol s: Symbols){
+    if(!s.defined && s.type != SCTN)
+      return true;
+  }
+
+  return false;
+
+}
+
+/**
+ * @brief sets machine code in right order
+ * 
+ */
+void Linker::setGoodCode(){
+
+  int start = 0;
+  for(Section s: Sections){
+    for(MachineCode mc: allMachineCode){
+      if(mc.sectionName == s.name){
+
+        start += mc.code.size();
+        goodMachineCode.push_back(mc);
+
+      }
+    }
+  }
+}
+
+/**
+ * @brief Set good offsets for Symbols
+ * 
+ */
+void Linker::setSymbolOffset(){
+
+  int i = 1;
+  for(Symbol symb: Symbols){
+    if(symb.symbolName == "UND") continue;
+
+    int size = 0;
+    for(MachineCode mc: goodMachineCode){
+      if(mc.fileName == symb.fileName && mc.sectionName == Symbols[symb.sectionId].symbolName){
+        Symbols[i].offset += size;
+        size = 0;
+        break;
+      } else {
+        size += mc.code.size();
+      }
+    }
+    i++;
+  }
+
+  int sz = 0;
+  for(Section sec: Sections){
+    if(sec.name == "UND") continue;
+
+    int j  = 0;
+    for(Symbol symb:Symbols){
+      if(symb.symbolName == sec.name){
+        Symbols[j].offset = sz;
+      }
+      j++;
+    }
+
+    sz += sec.size;
+  }  
+
+}
+
+/**
+ * @brief changes Machine code at set locations
+ * 
+ */
+void Linker::doRelocations(){
+
+  for(Relocations relos: allRelocations){
+
+    int i = 0, size = 0;
+    for(MachineCode mc: goodMachineCode){
+      if(mc.fileName == relos.fileName && mc.sectionName == relos.name){
+
+        int sz = relos.relocations.size();
+        for(int j = 0; j < sz; j++){
+          
+          if(relos.relocations[j].type == R_16){
+            string symbolValue = to_string(Symbols[relos.relocations[j].symbolId].offset + relos.relocations[j].addend);
+            vector<string> helper = decToCode(symbolValue);
+            goodMachineCode[i].code[relos.relocations[j].offset] = helper[0];
+            goodMachineCode[i].code[relos.relocations[j].offset + 1] = helper[1];
+          } else {
+
+            if(relos.relocations[j].type == R_WORD16){
+              string symbolValue = to_string(Symbols[relos.relocations[j].symbolId].offset);
+              vector<string> helper = decToCode(symbolValue);
+              goodMachineCode[i].code[relos.relocations[j].offset + relos.relocations[j].addend] = helper[1];
+              goodMachineCode[i].code[relos.relocations[j].offset + relos.relocations[j].addend + 1] = helper[0];
+            } else {
+              
+              int offsetSymb0 = size + relos.relocations[j].offset + 2;
+              int offsetSymb1 = Symbols[relos.relocations[j].symbolId].offset;
+              string help = to_string(offsetSymb1 - offsetSymb0);
+              vector<string> helper = decToCode(help);
+              goodMachineCode[i].code[relos.relocations[j].offset] = helper[0];
+              goodMachineCode[i].code[relos.relocations[j].offset + 1] = helper[1];
+            }
+                 
+          }
+
+        }
+
+        break;
+      }
+      i++;
+      size += mc.code.size();
+    }
+  }
+
+}
+
+/**
+ * @brief prints in help file to see if everything is ok
+ * 
+ */
+void Linker::printHelpFile(){
+
+  ofstream linkerHelper;
+  linkerHelper.open("linkerHelper.hex", ios::out|ios::trunc);
+
+  for(Section s: Sections){
+    linkerHelper << s.id << "\t" << s.size << "\t" << s.name << "\n";
+  }
+  linkerHelper << endl << endl;
+  for(Symbol s: Symbols){
+    linkerHelper << s.id << "\t" << hex << s.offset << dec << "\t" << s.sectionId << "\t" << s.symbolName << "\t" << s.defined << "\t";
+
+    switch(s.bind){
+      case GLOBAL:
+        linkerHelper << "GLOBAL" << "\t\t";
+        break;
+
+      case LOCAL:
+        linkerHelper << "LOCAL" << "\t\t";
+        break;
+
+      case NOBIND:
+      linkerHelper << "NOBIND" << "\t\t";
+      break;
+    }
+
+    linkerHelper << s.fileName << endl;
+  }
+  linkerHelper << endl << endl;
+
+  for(Relocations rels: allRelocations){
+
+    linkerHelper << "Relocations from section " << rels.name << "\t FILE NAME: " << rels.fileName << endl;
+
+    for(Relocation rel: rels.relocations){
+      linkerHelper << hex << rel.offset << dec << "\t";
+      switch(rel.type){
+        case R_16:
+          linkerHelper << "R_16\t";
+          break;
+
+        case R_PC16:
+          linkerHelper << "R_PC16\t";
+          break;
+
+        case R_WORD16:
+          linkerHelper << "R_WORD16\t";
+      }
+      linkerHelper << rel.symbolId << "\t" << rel.addend << endl;
+    }
+    linkerHelper << endl;
+  }
+
+  for(MachineCode mc:allMachineCode){
+    linkerHelper << "Machine code from section " << mc.sectionName << "\t FILE NAME: " << mc.fileName << endl;
+
+    int i = 0;
+    for(string s: mc.code){
+      if(i % 8 == 0){
+        linkerHelper << endl << hex << setfill('0') << setw(4) << i << dec << ": ";
+      }
+      linkerHelper << s << " ";
+      i++;
+    }
+    linkerHelper << endl;
+  }
+
+  linkerHelper << endl << endl << "All machine code linked (GOOD CODE)\n";
+
+  this->outputFile.open(outputFileString, ios::out|ios::trunc);
+
+  int j = 0;
+  for(MachineCode mc: goodMachineCode){
+    for(string s: mc.code){
+
+      if(j % 8 == 0){
+        linkerHelper << endl << hex << setfill('0') << setw(4) << j << dec << ": ";
+      }
+      linkerHelper << s << " ";
+      j++;
+    }
+
+  }
+
+  j = 0;
+  for(MachineCode mc: goodMachineCode){
+    for(string s: mc.code){
+
+      if(j == 0){
+        this->outputFile << hex << setfill('0') << setw(4) << j << dec << ": ";
+      } else {
+        if(j % 8 == 0){
+          this->outputFile << endl << hex << setfill('0') << setw(4) << j << dec << ": ";
+        } 
+      }
+      
+      this->outputFile<< s << " ";
+      j++;
+    }
+
+  }
+
+  linkerHelper.close();
+
+}
+
+/**
  * @brief Linker links all input files
  * 
  * @return int 0 - everything is okay, -1 - wrong terminal input, -2 - some input files don't exist
  * 
  */
 int Linker::link(){
-
-  ofstream linkerHelper;
-  string helper = "linkerHelper.hex";
-  linkerHelper.open(helper, ios::out|ios::trunc);
 
   Symbol oldSection;
   vector<Symbol> currentSymbols;
@@ -220,7 +492,10 @@ int Linker::link(){
         }
 
         if(line == "UND") symb.defined = false;
-        else if(line == "DEF") symb.defined = true;
+        else if(line == "DEF") {
+          symb.defined = true;
+          symb.fileName = s;
+        }
         i = searchSymbol(symb);
 
         if(i == -1){
@@ -251,6 +526,7 @@ int Linker::link(){
             Symbols[i].defined = true;
             Symbols[i].offset = symb.offset;
             Symbols[i].sectionId = symb.sectionId;
+            Symbols[i].fileName = s;
             if(Symbols[i].sectionId != oldSection.id){
               for(Symbol ss: Symbols){
                 if(ss.symbolName == oldSection.symbolName){
@@ -291,6 +567,7 @@ int Linker::link(){
             sscanf(params[0].c_str(), "%X", &relo.offset);
             if(params[1] == "R_16") relo.type = R_16;
             else if(params[1] == "R_PC16") relo.type = R_PC16;
+            else if(params[1] == "R_WORD16") relo.type = R_WORD16;
             relo.symbolId = stoi(params[2]);
 
             int num;
@@ -348,63 +625,14 @@ int Linker::link(){
     inputFile.close();
   }
 
-  for(Section s: Sections){
-    linkerHelper << s.id << "\t" << s.size << "\t" << s.name << "\n";
-  }
-  linkerHelper << endl << endl;
-  for(Symbol s: Symbols){
-    linkerHelper << s.id << "\t" << s.offset << "\t" << s.sectionId << "\t" << s.symbolName << "\t";
+  bool ret = checkForUNDSymbols();
+  if(ret) return -4;
 
-    switch(s.bind){
-      case GLOBAL:
-        linkerHelper << "GLOBAL" << endl;
-        break;
+  setGoodCode();
+  setSymbolOffset();
+  doRelocations();
 
-      case LOCAL:
-        linkerHelper << "LOCAL" << endl;
-        break;
-
-      case NOBIND:
-      linkerHelper << "NOBIND" << endl;
-      break;
-    }
-  }
-  linkerHelper << endl << endl;
-
-  for(Relocations rels: allRelocations){
-
-    linkerHelper << "Relocations from section " << rels.name << "\t FILE NAME: " << rels.fileName << endl;
-
-    for(Relocation rel: rels.relocations){
-      linkerHelper << hex << rel.offset << dec << "\t";
-      switch(rel.type){
-        case R_16:
-          linkerHelper << "R_16\t";
-          break;
-
-        case R_PC16:
-          linkerHelper << "R_PC16\t";
-      }
-      linkerHelper << rel.symbolId << "\t" << rel.addend << endl;
-    }
-    linkerHelper << endl;
-  }
-
-  for(MachineCode mc:allMachineCode){
-    linkerHelper << "Machine code from section " << mc.sectionName << "\t FILE NAME: " << mc.fileName << endl;
-
-    int i = 0;
-    for(string s: mc.code){
-      if(i % 8 == 0){
-        linkerHelper << endl << hex << setfill('0') << setw(4) << i << dec << ": ";
-      }
-      linkerHelper << s << " ";
-      i++;
-    }
-    linkerHelper << endl;
-  }
-
-  linkerHelper.close();
+  printHelpFile();
 
   return 0;
 
@@ -435,7 +663,7 @@ int main(int argc, char const *argv[]){
 
     if(ret == -2) throw InputException();
     if(ret == -3) throw MulitpleDefinitionOfSymbolException();
-
+    if(ret == -4) throw UndefinedSymbolException();
   }
   catch(const exception& e){
 

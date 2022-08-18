@@ -23,3 +23,11 @@ public:
     return "Multiple definition of same symbol found!";
   };
 };
+
+class UndefinedSymbolException: public std::exception{
+
+public:
+  const char* what() const throw(){
+    return "Undefined symbol found!";
+  };
+};
