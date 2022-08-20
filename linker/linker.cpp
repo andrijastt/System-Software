@@ -351,7 +351,11 @@ void Linker::printHelpFile(){
         } 
       }
       
-      this->outputFile<< s << " ";
+      if(j % 8 == 7){
+        this->outputFile<< s;
+      } else{
+        this->outputFile<< s << " ";
+      }
       j++;
     }
 
