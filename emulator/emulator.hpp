@@ -19,10 +19,11 @@ private:
 
   bool openFile();
   void loadMemory();
+  vector<string> hexToCode(string num);
 
   ifstream inputFile;
   string inputFileName;
-
+  bool stop = false;
   vector<string> Memory;
   string psw = "0000000000000000";
   int reg[9];   // r[0-7] + psw
@@ -35,8 +36,7 @@ private:
   enum ArithmeticInstr{ NOTARITHMETIC, ADD, SUB, MUL, DIV, CMP, ERRORARITHMETHIC};
   enum LogicInstr{ NOTLOGIC, NOT, AND, OR, XOR, TEST, ERRORLOGIC};
   enum ShiftInstr{ NOTSHIFT, SHL, SHR, ERRORSHIFT};
-  enum LoadInstr{ NOTLOAD, LDR, POP, ERRORLOAD};
-  enum StoreInstr{ NOTSTORE, STR, PUSH, ERRORSTORE};
+  enum InterruptType{ NOTMASKED, MASKED};
 
   struct Instruction{
     AddressType addressType;
@@ -46,14 +46,19 @@ private:
     ArithmeticInstr arithemtic = NOTARITHMETIC;
     LogicInstr logic = NOTLOGIC;
     ShiftInstr shift = NOTSHIFT;
-    LoadInstr load = NOTLOAD;
-    StoreInstr store = NOTSTORE;
     int size = 0;
     Registers regD;
     Registers regS;
+    string dataLow, dataHigh;
+  };
+
+  struct Interrupt{
+    InterruptType interruptType;
+    int entry;
   };
 
   Instruction instruction;
+  Interrupt interrupt;
 
   OPCode getOPCode(char s);
   JumpInstr getJumpType(char s);
@@ -63,7 +68,36 @@ private:
   ArithmeticInstr getArithmeticInstr(char s);
   LogicInstr getLogicInstr(char s);
   ShiftInstr getShiftInstr(char s);
-  
+  JumpInstr getJumpInstr(char s);
+  int getRegIndex(Registers reg);  
+  void PCJumpChange();
+
   void getInstruction();
+  void execute();
+
+  void _halt();
+  void _int();
+  void _iret();
+  void _call();
+  void _ret();
+  void _jmp();
+  void _jeq();
+  void _jne();
+  void _jgt();
+  void _xchg();
+  void _add();
+  void _sub();
+  void _mul();
+  void _div();
+  void _cmp();
+  void _not();
+  void _and();
+  void _or();
+  void _xor();
+  void _test();
+  void _shl();
+  void _shr();
+  void _load();
+  void _store();
 
 };
