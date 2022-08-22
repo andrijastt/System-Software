@@ -25,7 +25,6 @@ private:
   string inputFileName;
   bool stop = false;
   vector<string> Memory;
-  string psw = "0000000000000000";
   int reg[9];   // r[0-7] + psw
 
   enum Registers{ R0, R1, R2, R3, R4, R5, R6, SP = R6, R7, PC = R7, R8, PSW = R8, ERRORREG};
@@ -103,5 +102,15 @@ private:
   void _shr();
   void _load();
   void _store();
+
+  string toStringOPCode();
+  string toStringJumpType();
+  string toStringRegister(Registers reg);
+  string toStringAddressType();
+  string toStringAddressUpdate();
+  string toStringArithmeticInstr();
+  string toStringLogicInstr();
+  string toStringShiftInstr();
+  string toStringJumpInstr();
 
 };

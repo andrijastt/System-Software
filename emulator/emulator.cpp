@@ -129,6 +129,27 @@ Emulator::OPCode Emulator::getOPCode(char s){
 }
 
 /**
+ * @brief Returns what instruction is currently
+ * 
+ * @return string 
+ */
+string Emulator::toStringOPCode(){
+  if(instruction.operation == HALT) return "HALT";
+  else if(instruction.operation == INT) return "INT";
+  else if(instruction.operation == IRET) return "IRET";
+  else if(instruction.operation == CALL) return "CALL";
+  else if(instruction.operation == RET) return "RET";
+  else if(instruction.operation == JUMP) return "JUMP";
+  else if(instruction.operation == XCHG) return "XCHG";
+  else if(instruction.operation == ARITHMETIC) return "ARITHMETIC";
+  else if(instruction.operation == LOGIC) return "LOGIC";
+  else if(instruction.operation == SHIFT) return "SHIFT";
+  else if(instruction.operation == LOAD) return "LOAD";
+  else if(instruction.operation == STORE) return "STORE";
+  else return "ERROROP";
+}
+
+/**
  * @brief Return what type of Jump it is
  * 
  * @param s input byte
@@ -140,6 +161,20 @@ Emulator::JumpInstr Emulator::getJumpType(char s){
   else if(s == '2') return JNE;
   else if(s == '3') return JGT;
   else return ERRORJMP;
+}
+
+/**
+ * @brief Returns what type of jump it is
+ * 
+ * @return string 
+ */
+string Emulator::toStringJumpType(){
+  if(instruction.jump == JMP) return "JMP";
+  else if(instruction.jump == JEQ) return "JEQ";
+  else if(instruction.jump == JNE) return "JNE";
+  else if(instruction.jump == JGT) return "JGT";
+  else if(instruction.jump == NOTJMP) return "NOTJMP";
+  else return "ERRORJMP";
 }
 
 /**
@@ -162,6 +197,25 @@ Emulator::Registers Emulator::getRegister(char s){
 }
 
 /**
+ * @brief Return what register it is in string
+ * 
+ * @param reg Registwer we want to convert to string
+ * @return string 
+ */
+string Emulator::toStringRegister(Emulator::Registers reg){
+  if(reg == R0) return "R0";
+  else if(reg == R1) return "R1";
+  else if(reg == R2) return "R2";
+  else if(reg == R3) return "R3";
+  else if(reg == R4) return "R4";
+  else if(reg == R5) return "R5";
+  else if(reg == R6) return "SP";
+  else if(reg == R7) return "PC";
+  else if(reg == R8) return "PSW";
+  else return "ERRORREG";
+}
+
+/**
  * @brief Return what type of address it is
  * 
  * @param s input byte
@@ -178,6 +232,21 @@ Emulator::AddressType Emulator::getAddressType(char s){
 }
 
 /**
+ * @brief Return string value of address type
+ * 
+ * @return string 
+ */
+string Emulator::toStringAddressType(){
+  if(instruction.addressType == IMMED) return "IMMED";
+  else if(instruction.addressType == REGDIR) return "REGDIR";
+  else if(instruction.addressType == REGIND) return "REGIND";
+  else if(instruction.addressType == REGINDPOM) return "REGINDPOM";
+  else if(instruction.addressType == MEMDIR) return "MEMDIR";
+  else if(instruction.addressType == REGDIRPOM) return "REGDIRPOM";
+  else return "ERRORADDR";
+}
+
+/**
  * @brief Return what type of address update it is
  * 
  * @param s input byte
@@ -190,6 +259,15 @@ Emulator::AddressUpdate Emulator::getAddressUpdate(char s){
   else if(s == '3') return DECAFTER;
   else if(s == '4') return INCAFTER;
   else return ERRORUPD;
+}
+
+string Emulator::toStringAddressUpdate(){
+  if(instruction.addressUpdate == NOUPD) return "NOUPD";
+  else if(instruction.addressUpdate == DECBEFORE) return "DECBEFORE";
+  else if(instruction.addressUpdate == INCBEFORE) return "INCBEFORE";
+  else if(instruction.addressUpdate == DECAFTER) return "DECAFTER";
+  else if(instruction.addressUpdate == INCAFTER) return "INCAFTER";
+  else return "ERRORUPD";
 }
 
 /**
@@ -345,7 +423,6 @@ void Emulator::PCJumpChange(){
 
       switch(instruction.addressUpdate){
         case NOUPD:
-          // reg[7] = Memory[reg[indexS] + dataInt];
           data = Memory[reg[indexS] + dataInt + 1] + Memory[reg[indexS] + dataInt];
           break;
 
@@ -360,15 +437,13 @@ void Emulator::PCJumpChange(){
           break;
 
         case DECAFTER:
-          // reg[7] = Memory[reg[indexS] + dataInt];
           data = Memory[reg[indexS] + dataInt + 1] + Memory[reg[indexS] + dataInt];
           reg[indexS] -= 2;     
           break;
 
         case INCAFTER:
-          // reg[7] = Memory[reg[indexS] + dataInt];
           data = Memory[reg[indexS] + dataInt + 1] + Memory[reg[indexS] + dataInt];
-          reg[indexS] -= 2;         
+          reg[indexS] += 2;         
           break; 
       }
       ss << data;
@@ -394,7 +469,42 @@ void Emulator::PCJumpChange(){
       reg[7] = dataInt + reg[indexS];
       break;
 
-    default: /// TODO add Interrupt for IMMED and ERRORTYPE
+    case REGIND:
+      indexS = getRegIndex(instruction.regS);
+      if(indexS == -1){
+        addInterrupt();
+        break;
+      }
+      switch(instruction.addressUpdate){
+        case NOUPD:
+          data = Memory[reg[indexS] + 1] + Memory[reg[indexS]];
+          break;
+
+        case DECBEFORE:
+          reg[indexS] -= 2;
+          data = Memory[reg[indexS] + 1] + Memory[reg[indexS]];
+          break;
+
+        case INCBEFORE:
+          reg[indexS] += 2;
+          data = Memory[reg[indexS] + 1] + Memory[reg[indexS]];
+
+        case DECAFTER:
+          data = Memory[reg[indexS] + 1] + Memory[reg[indexS]];
+          reg[indexS] -= 2;     
+          break;
+
+        case INCAFTER:
+          data = Memory[reg[indexS] + 1] + Memory[reg[indexS]];
+          reg[indexS] += 2;         
+          break; 
+      }
+      ss << data;
+      ss >> hex >> reg[7];
+
+      break;
+
+    default: /// TODO add Interrupt for ERRORTYPE
       addInterrupt();
       break;
   }
@@ -420,7 +530,16 @@ void Emulator::_int(){
   } else {
     // stack part
     reg[6] -= 2;
-    Memory[reg[6]] = psw; // TODO
+    // Memory[reg[6]] = psw; // TODO
+    vector<string> helper = decToCode(to_string(reg[7]));
+    Memory[reg[6] + 1] = helper[0];
+    Memory[reg[6]] = helper[1];
+
+    helper = decToCode(to_string(reg[8]));
+    Memory[reg[6] + 1] = helper[0];
+    Memory[reg[6]] = helper[1];
+    reg[6] -= 2;
+
     string help = Memory[(reg[indexD] % 8) * 2 + 1] + Memory[(reg[indexD] % 8) * 2];
     stringstream ss;
     ss << help;
@@ -442,10 +561,10 @@ void Emulator::_iret(){ // TODO check
   ss << help1;
   ss >> hex >> reg[8];  // TODO check psw
 
-  help1 = Memory[reg[6] + 1] + Memory[reg[6]];
+  string help2 = Memory[reg[6] + 1] + Memory[reg[6]];
   reg[6] += 2;
 
-  ss << help1;
+  ss << help2;                 // GRESKAA
   ss >> hex >> reg[7];
 
 }
@@ -460,8 +579,8 @@ void Emulator::_call(){
   string pc = to_string(reg[7]);
   vector<string> helper = decToCode(pc);
 
-  Memory[reg[6]] = helper[0];               // TODO check
-  Memory[reg[6] + 1] = helper[1];
+  Memory[reg[6]] = helper[1];               // TODO check
+  Memory[reg[6] + 1] = helper[0];
 
   PCJumpChange();
 }
@@ -493,7 +612,7 @@ void Emulator::_jmp(){
  * 
  */
 void Emulator::_jeq(){
-  if(reg[8] | 1){
+  if(reg[8] & 1){
     PCJumpChange();
   }
 }
@@ -503,7 +622,7 @@ void Emulator::_jeq(){
  * 
  */
 void Emulator::_jne(){
-  if(!(reg[8] | 1)){
+  if(!(reg[8] & 1)){
     PCJumpChange();
   }
 }
@@ -513,7 +632,8 @@ void Emulator::_jne(){
  * 
  */
 void Emulator::_jgt(){
-  if(!(reg[8] | 1) && !(reg[8] | 8 ^ reg[8] | 2)){
+  // !(get_flag(N) ^ get_flag(O)) & !get_flag(Z)
+  if(!(reg[8] | 1) & !(reg[8] | 8 ^ reg[8] | 2)){
     PCJumpChange();
   }
 }
@@ -602,8 +722,20 @@ void Emulator::_cmp(){
   if(regDIndex == -1 || regSIndex == -1){
     addInterrupt();
   } else {
-    // TODO PSW
-
+    int newPSW = 0, temp = reg[regDIndex] - reg[regSIndex];
+    if( (reg[regDIndex] < 0 && reg[regSIndex] > 0 && temp > 0) || (reg[regDIndex] > 0 && reg[regSIndex] < 0 && temp < 0) ){
+      newPSW += 2;
+    }
+    if(reg[regDIndex] < reg[regSIndex]){
+      newPSW += 4;
+    }
+    if(temp == 0){
+      newPSW += 1;
+    }
+    if(temp < 0){
+      newPSW += 8;
+    }
+    reg[8] = newPSW;
   }
 }
 
@@ -669,9 +801,20 @@ void Emulator::_test(){
   if(regDIndex == -1 || regSIndex == -1){
     addInterrupt();
   } else {
-    int temp = reg[regDIndex] - reg[regSIndex];
-
-    // TODO UPDATE PSW
+    int newPSW = 0, temp = reg[regDIndex] - reg[regSIndex];
+    if( (reg[regDIndex] < 0 && reg[regSIndex] > 0 && temp > 0) || (reg[regDIndex] > 0 && reg[regSIndex] < 0 && temp < 0) ){
+      newPSW += 2;
+    }
+    if(reg[regDIndex] < reg[regSIndex]){
+      newPSW += 4;
+    }
+    if(temp == 0){
+      newPSW += 1;
+    }
+    if(temp < 0){
+      newPSW += 8;
+    }
+    reg[8] = newPSW;
   }
 }
 
@@ -685,9 +828,24 @@ void Emulator::_shl(){
   if(regDIndex == -1 || regSIndex == -1){
     addInterrupt();
   } else {
+    int temp = reg[regDIndex];
     reg[regDIndex] << reg[regSIndex];
 
     // TODO UPDATE PSW
+    int newPSW = 0;
+    if( (reg[regDIndex] < 0 && temp > 0) || (reg[regDIndex] > 0 && temp < 0) ){
+      newPSW += 2;
+    }
+    if(reg[regDIndex] < temp){
+      newPSW += 4;
+    }
+    if(reg[regDIndex] == 0){
+      newPSW += 1;
+    }
+    if(reg[regDIndex] < 0){
+      newPSW += 8;
+    }
+    reg[8] = newPSW;
   }
 
 }
@@ -702,9 +860,24 @@ void Emulator::_shr(){
   if(regDIndex == -1 || regSIndex == -1){
     addInterrupt();
   } else {
+    int temp = reg[regDIndex];
     reg[regDIndex] >> reg[regSIndex];
 
     // TODO UPDATE PSW
+    int newPSW = 0;
+    if( (reg[regDIndex] < 0 && temp > 0) || (reg[regDIndex] > 0 && temp < 0) ){
+      newPSW += 2;
+    }
+    if(reg[regDIndex] < temp){
+      newPSW += 4;
+    }
+    if(reg[regDIndex] == 0){
+      newPSW += 1;
+    }
+    if(reg[regDIndex] < 0){
+      newPSW += 8;
+    }
+    reg[8] = newPSW;
   }
 }
 
@@ -775,7 +948,7 @@ void Emulator::_load(){ //
         case INCAFTER:
           // reg[7] = Memory[reg[indexS] + dataInt];
           data = Memory[reg[regSIndex] + dataInt + 1] + Memory[reg[regSIndex] + dataInt];
-          reg[regSIndex] -= 2;         
+          reg[regSIndex] += 2;         
           break; 
       }
       ss << data;
@@ -798,6 +971,42 @@ void Emulator::_load(){ //
       ss << data;
       ss >> hex >> dataInt;
       reg[regDIndex] = dataInt + reg[regSIndex];
+      break;
+
+    case REGIND:
+      if(regSIndex == -1){
+        addInterrupt();
+        break;
+      }
+      switch(instruction.addressUpdate){
+        case NOUPD:
+          data = Memory[reg[regSIndex] + 1] + Memory[reg[regSIndex]];
+          break;
+
+        case DECBEFORE:
+          reg[regSIndex] -= 2;
+          data = Memory[reg[regSIndex] + 1] + Memory[reg[regSIndex]];
+          break;
+
+        case INCBEFORE:
+          reg[regSIndex] += 2;
+          data = Memory[reg[regSIndex]+ 1] + Memory[reg[regSIndex]];
+          break;
+
+        case DECAFTER:
+          // reg[7] = Memory[reg[indexS] + dataInt];
+          data = Memory[reg[regSIndex] +1] + Memory[reg[regSIndex]];
+          reg[regSIndex] -= 2;     
+          break;
+
+        case INCAFTER:
+          // reg[7] = Memory[reg[indexS] + dataInt];
+          data = Memory[reg[regSIndex] + 1] + Memory[reg[regSIndex]];
+          reg[regSIndex] += 2;         
+          break; 
+      }
+      ss << data;
+      ss >> hex >> reg[regDIndex];
       break;
 
     default: /// TODO add Interrupt for ERRORTYPE
@@ -825,8 +1034,9 @@ void Emulator::_store(){  // TODO
   stringstream ss;
   string data, dataLow, dataHigh;
   int dataInt;
-  switch(instruction.addressType){
+  vector<string> helper;
 
+  switch(instruction.addressType){
     case REGDIR:
       if(regSIndex == -1){
         addInterrupt();
@@ -868,19 +1078,22 @@ void Emulator::_store(){  // TODO
         case INCAFTER:
           // reg[7] = Memory[reg[indexS] + dataInt];
           data = Memory[reg[regSIndex] + dataInt + 1] + Memory[reg[regSIndex] + dataInt];
-          reg[regSIndex] -= 2;         
+          reg[regSIndex] += 2;         
           break; 
       }
       ss << data;
       ss >> hex >> dataInt;
 
+      helper = decToCode(to_string(reg[regDIndex]));
+      Memory[dataInt + 1] = helper[0];
+      Memory[dataInt] = helper[1];
 
       break;
 
     case MEMDIR:
       data = Memory[dataInt + 1] + Memory[dataInt];
       ss << data;
-      ss >> hex >> reg[regDIndex];
+      ss >> hex >> reg[regSIndex];
       break;
 
     case REGDIRPOM:
@@ -891,7 +1104,52 @@ void Emulator::_store(){  // TODO
       data = instruction.dataHigh + instruction.dataLow;
       ss << data;
       ss >> hex >> dataInt;
-      reg[regDIndex] = dataInt + reg[regSIndex];
+      reg[regSIndex] = dataInt + reg[regDIndex];
+      break;
+
+    case REGIND:
+      if(regSIndex == -1){
+        addInterrupt();
+        break;
+      }
+
+      switch(instruction.addressUpdate){
+        case NOUPD:
+          helper = decToCode(to_string(reg[regDIndex]));
+          Memory[reg[regSIndex] + 1] = helper[0];
+          Memory[reg[regSIndex]] = helper[1];
+          break;
+
+        case DECBEFORE:
+          reg[regSIndex] -= 2;
+          helper = decToCode(to_string(reg[regDIndex]));
+          Memory[reg[regSIndex]+ 1] = helper[0];
+          Memory[reg[regSIndex]] = helper[1];
+          break;
+
+        case INCBEFORE:
+          reg[regSIndex] += 2;
+          helper = decToCode(to_string(reg[regDIndex]));
+          Memory[reg[regSIndex]+ 1] = helper[0];
+          Memory[reg[regSIndex]] = helper[1];
+          break;
+
+        case DECAFTER:
+          // reg[7] = Memory[reg[indexS] + dataInt];
+          helper = decToCode(to_string(reg[regDIndex]));
+          Memory[reg[regSIndex]+ 1] = helper[0];
+          Memory[reg[regSIndex]] = helper[1];
+          reg[regSIndex] -= 2;     
+          break;
+
+        case INCAFTER:
+          // reg[7] = Memory[reg[indexS] + dataInt];
+          helper = decToCode(to_string(reg[regDIndex]));
+          Memory[reg[regSIndex]+ 1] = helper[0];
+          Memory[reg[regSIndex]] = helper[1];
+          reg[regSIndex] += 2;         
+          break; 
+      }
       break;
 
     default: /// TODO add Interrupt for IMMED and ERRORTYPE
@@ -918,86 +1176,86 @@ void Emulator::getInstruction(){
     instruction.regD = getRegister(regs[0]);
     instruction.regS = getRegister(regs[1]);
     instruction.size++;
-  }
 
-  // here it is 3B or 5B instruction
-  if(instruction.operation != INT && instruction.operation != XCHG && instruction.operation != ARITHMETIC && instruction.operation != LOGIC 
-  && instruction.operation != SHIFT && instruction.operation != ERROROP){
-    string addrTyp = Memory[reg[7] + 2];
-    instruction.addressType = getAddressType(addrTyp[1]);
+    // here it is 3B or 5B instruction
+    if(instruction.operation != INT && instruction.operation != XCHG && instruction.operation != ARITHMETIC && instruction.operation != LOGIC 
+    && instruction.operation != SHIFT && instruction.operation != ERROROP){
+      string addrTyp = Memory[reg[7] + 2];
+      instruction.addressType = getAddressType(addrTyp[1]);
 
-    if(instruction.addressType == REGIND || instruction.addressType == REGINDPOM){
-      instruction.addressUpdate = getAddressUpdate(addrTyp[0]);
-    } else {
-      instruction.addressUpdate = NOUPD;
+      if(instruction.addressType == REGIND || instruction.addressType == REGINDPOM){
+        instruction.addressUpdate = getAddressUpdate(addrTyp[0]);
+      } else {
+        instruction.addressUpdate = NOUPD;
+      }
+
+      instruction.arithemtic = NOTARITHMETIC;
+      instruction.logic = NOTLOGIC;
+      instruction.shift = NOTSHIFT;
+
+      if(instruction.operation == JUMP){
+        instruction.jump = getJumpInstr(byte1[1]);
+      } else {
+        if(instruction.operation == LOAD || instruction.operation == STORE || instruction.operation == CALL){
+          instruction.jump = NOTJMP;
+        } 
+      }
+
+      if(instruction.addressType == MEMDIR || instruction.addressType == REGINDPOM || instruction.addressType == IMMED 
+      || instruction.addressType == REGDIRPOM){
+        instruction.size = 5;
+        instruction.dataHigh = Memory[reg[7] + 3];
+        instruction.dataLow = Memory[reg[7] + 4];
+      } else {
+        instruction.size = 3;
+      }
+
+
+    } else {  // it is 2B instruction, or ERROROP
+
+      switch(instruction.operation){
+
+        case INT: // already has all info needed
+          instruction.arithemtic = NOTARITHMETIC;
+          instruction.logic = NOTLOGIC;
+          instruction.shift = NOTSHIFT;
+          instruction.jump = NOTJMP;
+          break;
+
+        case XCHG:  // already has all info needed
+          instruction.arithemtic = NOTARITHMETIC;
+          instruction.logic = NOTLOGIC;
+          instruction.shift = NOTSHIFT;
+          instruction.jump = NOTJMP;
+          break;
+
+        case ARITHMETIC:
+          instruction.arithemtic = getArithmeticInstr(byte1[1]);
+          instruction.logic = NOTLOGIC;
+          instruction.shift = NOTSHIFT;
+          instruction.jump = NOTJMP;
+          break;
+
+        case LOGIC:
+          instruction.arithemtic = NOTARITHMETIC;
+          instruction.logic = getLogicInstr(byte1[1]);
+          instruction.shift = NOTSHIFT;
+          instruction.jump = NOTJMP;
+          break;
+
+        case SHIFT:
+          instruction.arithemtic = NOTARITHMETIC;
+          instruction.logic = NOTLOGIC;
+          instruction.shift = getShiftInstr(byte1[1]);
+          instruction.jump = NOTJMP;
+          break;
+
+        case ERROROP:
+          break;
+      }
+
     }
-
-    instruction.arithemtic = NOTARITHMETIC;
-    instruction.logic = NOTLOGIC;
-    instruction.shift = NOTSHIFT;
-
-    if(instruction.operation == JUMP){
-      instruction.jump = getJumpInstr(byte1[1]);
-    } else {
-      if(instruction.operation == LOAD || instruction.operation == STORE || instruction.operation == CALL){
-        instruction.jump = NOTJMP;
-      } 
-    }
-
-    if(instruction.addressType == MEMDIR || instruction.addressType == REGINDPOM || instruction.addressType == IMMED 
-    || instruction.addressType == REGDIRPOM){
-      instruction.size = 5;
-      instruction.dataHigh = Memory[reg[7] + 3];
-      instruction.dataLow = Memory[reg[7] + 4];
-    } else {
-      instruction.size = 3;
-    }
-
-
-  } else {  // it is 2B instruction, or ERROROP
-
-    switch(instruction.operation){
-
-      case INT: // already has all info needed
-        instruction.arithemtic = NOTARITHMETIC;
-        instruction.logic = NOTLOGIC;
-        instruction.shift = NOTSHIFT;
-        instruction.jump = NOTJMP;
-        break;
-
-      case XCHG:  // already has all info needed
-        instruction.arithemtic = NOTARITHMETIC;
-        instruction.logic = NOTLOGIC;
-        instruction.shift = NOTSHIFT;
-        instruction.jump = NOTJMP;
-        break;
-
-      case ARITHMETIC:
-        instruction.arithemtic = getArithmeticInstr(byte1[1]);
-        instruction.logic = NOTLOGIC;
-        instruction.shift = NOTSHIFT;
-        instruction.jump = NOTJMP;
-        break;
-
-      case LOGIC:
-        instruction.arithemtic = NOTARITHMETIC;
-        instruction.logic = getLogicInstr(byte1[1]);
-        instruction.shift = NOTSHIFT;
-        instruction.jump = NOTJMP;
-        break;
-
-      case SHIFT:
-        instruction.arithemtic = NOTARITHMETIC;
-        instruction.logic = NOTLOGIC;
-        instruction.shift = getShiftInstr(byte1[1]);
-        instruction.jump = NOTJMP;
-        break;
-
-      case ERROROP:
-        break;
-    }
-
-  }
+  } 
 
 }
 
@@ -1186,7 +1444,7 @@ void Emulator::interrupt(){
 
   if(Interrupts.size() > 0){
 
-    if(reg[8] | 32786){     // reg I == 1
+    if(reg[8] | 32768){     // reg I == 1
       executeInterrupt(Interrupts[0]);
       Interrupts.erase(Interrupts.begin());
     } else{
@@ -1213,13 +1471,22 @@ int Emulator::emulate(){
   stringstream ss;
   ss << startPC;
   ss >> hex >> reg[7];
-  cout << reg[7] << endl;
+
+  ofstream helperStream;
+  helperStream.open("helper.emulator.hex", ios::out|ios::trunc);
 
   while(true){
 
     getInstruction();
+    helperStream << toStringOPCode() << "\t" << toStringAddressType() << "\t" << toStringAddressUpdate() << endl;
+    for(int i = 0; i < 9; i++){
+      helperStream << "R[" << i << "]:\t" << reg[i] << "\t\t";
+      if(i % 3 == 2) helperStream << endl;
+    }
+    helperStream << endl << endl;
+    reg[7] += instruction.size;
 
-    if(instruction.operation != ERROROP){
+    if(instruction.operation == ERROROP){
       addInterrupt();
     } else {
       execute();
@@ -1228,19 +1495,35 @@ int Emulator::emulate(){
     if(stop){
       break;
     }
-
     interrupt();
   }
 
   cout << "------------------------------------------------\n"
   << "Emulated processor executed halt instruction\n"
-  << "Emulated processor state: psw=";
+  << "Emulated processor state: psw=0b";
+
+  int help = 32768;
+  while(help > 0){
+    if(reg[8] & help) cout << "1";
+    else cout << "0";
+    help /= 2;
+  }
+  cout << endl;
+  for(int i = 0; i < 8; i++){
+    cout << "r" << i << "=0x" << hex << setfill('0') << setw(4) << reg[i];
+
+    if(i == 3){
+      cout << endl;
+    } else {
+      cout << "\t";
+    }
+  }
+  cout << endl;
 
   return 0;
 }
 
 int main(int argc, char const *argv[]){
-  
   try{
     if(!argv[1]) throw InputException();
     if(!checkInputData(argv[1])) throw InputException();
@@ -1255,6 +1538,5 @@ int main(int argc, char const *argv[]){
   catch(const std::exception& e){
     std::cerr << e.what() << '\n';
   }
-  
   
 }
