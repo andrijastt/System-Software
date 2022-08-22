@@ -19,7 +19,7 @@ private:
 
   bool openFile();
   void loadMemory();
-  vector<string> hexToCode(string num);
+  vector<string> decToCode(string num);
 
   ifstream inputFile;
   string inputFileName;
@@ -58,7 +58,7 @@ private:
   };
 
   Instruction instruction;
-  Interrupt interrupt;
+  vector<Interrupt> Interrupts;
 
   OPCode getOPCode(char s);
   JumpInstr getJumpType(char s);
@@ -71,9 +71,13 @@ private:
   JumpInstr getJumpInstr(char s);
   int getRegIndex(Registers reg);  
   void PCJumpChange();
+  void addInterrupt();
+  int checkUnmaskedInterrupts();
 
   void getInstruction();
   void execute();
+  void executeInterrupt(Interrupt interrupt);
+  void interrupt();
 
   void _halt();
   void _int();
