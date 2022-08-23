@@ -802,12 +802,6 @@ void Emulator::_test(){
     addInterrupt();
   } else {
     int newPSW = 0, temp = reg[regDIndex] - reg[regSIndex];
-    if( (reg[regDIndex] < 0 && reg[regSIndex] > 0 && temp > 0) || (reg[regDIndex] > 0 && reg[regSIndex] < 0 && temp < 0) ){
-      newPSW += 2;
-    }
-    if(reg[regDIndex] < reg[regSIndex]){
-      newPSW += 4;
-    }
     if(temp == 0){
       newPSW += 1;
     }
@@ -833,9 +827,6 @@ void Emulator::_shl(){
 
     // TODO UPDATE PSW
     int newPSW = 0;
-    if( (reg[regDIndex] < 0 && temp > 0) || (reg[regDIndex] > 0 && temp < 0) ){
-      newPSW += 2;
-    }
     if(reg[regDIndex] < temp){
       newPSW += 4;
     }
@@ -865,9 +856,6 @@ void Emulator::_shr(){
 
     // TODO UPDATE PSW
     int newPSW = 0;
-    if( (reg[regDIndex] < 0 && temp > 0) || (reg[regDIndex] > 0 && temp < 0) ){
-      newPSW += 2;
-    }
     if(reg[regDIndex] < temp){
       newPSW += 4;
     }
