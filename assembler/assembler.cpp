@@ -50,7 +50,7 @@ vector<string> Assembler::hexToCode(string num){
   } else {
     if(num.size() == 3){
       ret.push_back("0" + num.substr(0,1));
-      ret.push_back(num.substr(2,2));
+      ret.push_back(num.substr(1,2));
     } else {
       if(num.size() == 2){
         ret.push_back("00");
@@ -80,11 +80,11 @@ vector<string> Assembler::decToCode(string num){
 
   if(help1.size() == 4){
     ret.push_back(help1.substr(0,2));
-    ret.push_back(help1.substr(1,2));
+    ret.push_back(help1.substr(2,2));
   } else {
     if(help1.size() == 3){
       ret.push_back("0" + help1.substr(0,1));
-      ret.push_back(help1.substr(2,2));
+      ret.push_back(help1.substr(1,2));
     } else {
       if(help1.size() == 2){
         ret.push_back("00");

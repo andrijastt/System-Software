@@ -25,7 +25,7 @@ private:
   string inputFileName;
   bool stop = false;
   vector<string> Memory;
-  int reg[9];   // r[0-7] + psw
+  unsigned int reg[9];   // r[0-7] + psw
 
   enum Registers{ R0, R1, R2, R3, R4, R5, R6, SP = R6, R7, PC = R7, R8, PSW = R8, ERRORREG};
   enum AddressType{ IMMED, REGDIR, REGIND, REGINDPOM, MEMDIR, REGDIRPOM, ERRORADDR};

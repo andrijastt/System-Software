@@ -44,11 +44,11 @@ vector<string> Emulator::decToCode(string num){
 
   if(help1.size() == 4){
     ret.push_back(help1.substr(0,2));
-    ret.push_back(help1.substr(1,2));
+    ret.push_back(help1.substr(2,2));
   } else {
     if(help1.size() == 3){
       ret.push_back("0" + help1.substr(0,1));
-      ret.push_back(help1.substr(2,2));
+      ret.push_back(help1.substr(1,2));
     } else {
       if(help1.size() == 2){
         ret.push_back("00");
@@ -394,7 +394,7 @@ void Emulator::PCJumpChange(){
 
   stringstream ss;
   string data, dataLow, dataHigh;
-  int indexS, dataInt;
+  unsigned int indexS, dataInt;
   switch(instruction.addressType){
     case IMMED:
       data = instruction.dataHigh + instruction.dataLow;
@@ -446,9 +446,7 @@ void Emulator::PCJumpChange(){
           reg[indexS] += 2;         
           break; 
       }
-      ss << data;
-      ss >> hex >> reg[7];
-
+      reg[7]= stoul(data, nullptr, 16); 
       break;
 
     case MEMDIR:
@@ -464,6 +462,11 @@ void Emulator::PCJumpChange(){
         break;
       }
       data = instruction.dataHigh + instruction.dataLow;
+
+      if(data[0] == '8' || data[0] == '9' || data[0] == 'A' || data[0] == 'B' || data[0] == 'C' || data[0] == 'D' 
+      || data[0] == 'E' || data[0] == 'F') 
+        data  = "FFFF" + data;
+
       ss << data;
       ss >> hex >> dataInt;
       reg[7] = dataInt + reg[indexS];
@@ -535,11 +538,11 @@ void Emulator::_int(){
     Memory[reg[6] + 1] = helper[0];
     Memory[reg[6]] = helper[1];
 
+    reg[6] -= 2;
     helper = decToCode(to_string(reg[8]));
     Memory[reg[6] + 1] = helper[0];
     Memory[reg[6]] = helper[1];
-    reg[6] -= 2;
-
+    
     string help = Memory[(reg[indexD] % 8) * 2 + 1] + Memory[(reg[indexD] % 8) * 2];
     stringstream ss;
     ss << help;
@@ -562,10 +565,8 @@ void Emulator::_iret(){ // TODO check
   ss >> hex >> reg[8];  // TODO check psw
 
   string help2 = Memory[reg[6] + 1] + Memory[reg[6]];
+  reg[7] = stoul(help2, nullptr, 16);  
   reg[6] += 2;
-
-  ss << help2;                 // GRESKAA
-  ss >> hex >> reg[7];
 
 }
 
@@ -603,7 +604,6 @@ void Emulator::_ret(){
  * 
  */
 void Emulator::_jmp(){
-
   PCJumpChange();
 }
 
@@ -951,15 +951,15 @@ void Emulator::_load(){ //
           reg[regSIndex] += 2;         
           break; 
       }
-      ss << data;
-      ss >> hex >> reg[regDIndex];
-
+      reg[regDIndex]= stoul(data, nullptr, 16); 
       break;
 
     case MEMDIR:
-      data = Memory[dataInt + 1] + Memory[dataInt];
+      data = instruction.dataHigh + instruction.dataLow;
       ss << data;
-      ss >> hex >> reg[regDIndex];
+      ss >> hex >> dataInt;
+      data = Memory[dataInt + 1] + Memory[dataInt];
+      reg[regDIndex] = stoul(data, nullptr, 16);
       break;
 
     case REGDIRPOM:
@@ -1091,9 +1091,12 @@ void Emulator::_store(){  // TODO
       break;
 
     case MEMDIR:
-      data = Memory[dataInt + 1] + Memory[dataInt];
+      data = instruction.dataHigh + instruction.dataLow;
       ss << data;
-      ss >> hex >> reg[regSIndex];
+      ss >> hex >> dataInt;
+      helper = decToCode(to_string(reg[regDIndex]));
+      Memory[dataInt + 1] = helper[0];
+      Memory[dataInt] = helper[1];
       break;
 
     case REGDIRPOM:
@@ -1478,7 +1481,9 @@ int Emulator::emulate(){
   while(true){
 
     getInstruction();
-    helperStream << toStringOPCode() << "\t" << toStringAddressType() << "\t" << toStringAddressUpdate() << endl;
+    helperStream << toStringOPCode() << "\t" << toStringAddressType() << "\t" << toStringAddressUpdate() << " RegD " << toStringRegister(instruction.regD) 
+    << "\tRegS " << toStringRegister(instruction.regS)  << "\t" << instruction.dataHigh << instruction.dataLow << endl;
+
     for(int i = 0; i < 9; i++){
       helperStream << "R[" << i << "]:\t" << reg[i] << "\t\t";
       if(i % 3 == 2) helperStream << endl;
